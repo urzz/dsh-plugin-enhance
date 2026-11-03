@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-enhance",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Check and selectively update installed DSH plugin bundles",
   "type": "module",
   "license": "MIT",
@@ -8,7 +8,10 @@
     "type": "git",
     "url": "git+https://github.com/urzz/dsh-plugin-enhance.git"
   },
-  "engines": { "node": ">=22", "dsh": "0.2.1-rc.5" },
+  "engines": {
+    "node": ">=22",
+    "dsh": "0.2.1-rc.5"
+  },
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
@@ -17,13 +20,28 @@
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg"
   },
-  "files": ["index.js", "engine.js", "client.js", "typert.host.js", "typert.remote-client.js", "cordis.patch.yml", "locale/*.json", "icon.svg", "README.md", "LICENSE"],
+  "files": [
+    "index.js",
+    "engine.js",
+    "client.js",
+    "typert.host.js",
+    "typert.remote-client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "esbuild client.source.js --bundle --preserve-symlinks --platform=browser --format=cjs --external:react --external:zod --banner:js=\"window.__ModuleLoader__.load({id:'dsh-plugin-enhance',factory(require){const module={exports:{}};\" --footer:js=\"return module.exports;}});\" --outfile=client.js && node --check index.js && node --check engine.js && node --check client.js && node --check typert.host.js && node --check typert.remote-client.js",
     "test": "node --test",
     "check": "npm run build && npm test"
   },
-  "dependencies": { "semver": "^7.7.3", "zod": "^4.4.3", "execa": "^10.0.1" },
+  "dependencies": {
+    "semver": "^7.7.3",
+    "zod": "^4.4.3",
+    "execa": "^10.0.1"
+  },
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.0.5",
     "@deepseek-ai/dsh-typert-protocol": "0.2.1-rc.5",
@@ -35,14 +53,26 @@
     "@deepseek-ai/dsh-app-boot": "0.2.1-rc.5",
     "@deepseek-ai/dsh-subprocess": "0.2.1-rc.5"
   },
-  "devDependencies": { "@deepseek-ai/dsh-api-gateway": "0.2.1-rc.5", "esbuild": "0.25.12" },
+  "devDependencies": {
+    "@deepseek-ai/dsh-api-gateway": "0.2.1-rc.5",
+    "esbuild": "0.25.12"
+  },
   "dsh": {
-    "bundle": { "patch": "./cordis.patch.yml" },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
     "client": {
       "platform": "web",
       "immediately": true,
-      "inject": ["@deepseek-ai/dsh-client-ui-plugin-manager", "@deepseek-ai/dsh-client-locale", "@deepseek-ai/dsh-api-remotes"],
-      "external": ["react", "zod"]
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-plugin-manager",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-api-remotes"
+      ],
+      "external": [
+        "react",
+        "zod"
+      ]
     }
   }
 }
