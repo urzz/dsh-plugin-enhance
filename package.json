@@ -1,0 +1,44 @@
+{
+  "name": "dsh-plugin-enhance",
+  "version": "0.1.0",
+  "description": "Check and selectively update installed DSH plugin bundles",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=22", "dsh": "0.2.1-rc.5" },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./typert": "./typert.host.js",
+    "./remote": "./typert.remote-client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": ["index.js", "engine.js", "client.js", "typert.host.js", "typert.remote-client.js", "cordis.patch.yml", "locale/*.json", "icon.svg", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "node --check index.js && node --check engine.js && node --check client.js && node --check typert.host.js && node --check typert.remote-client.js",
+    "test": "node --test",
+    "check": "npm run build && npm test"
+  },
+  "dependencies": { "semver": "^7.7.3", "zod": "^4.4.3", "execa": "^10.0.1" },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.0.5",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-plugin-manager": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-plugin-market": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-sandbox": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-sandbox-policy": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-app-boot": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-subprocess": "0.2.1-rc.5"
+  },
+  "devDependencies": { "@deepseek-ai/dsh-api-gateway": "0.2.1-rc.5" },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": ["@deepseek-ai/dsh-client-ui-plugin-manager", "@deepseek-ai/dsh-client-locale", "@deepseek-ai/dsh-api-remotes"],
+      "external": ["react"]
+    }
+  }
+}
