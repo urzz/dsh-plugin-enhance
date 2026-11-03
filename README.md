@@ -4,7 +4,7 @@
 
 为 DSH 插件管理页增加「更新」标签页，支持检查更新、勾选批量更新、一键更新全部可更新项，以及重试失败项。Host 服务和 `plugin_enhance` 工具使用同一更新引擎。
 
-目标运行版本为 **DSH 0.2.1-rc.5**，包含英文和简体中文界面。此仓库独立管理；没有预设远程地址。
+目标运行版本为 **DSH 0.2.1-rc.5**，包含英文和简体中文界面。此仓库独立管理，源码位于 [urzz/dsh-plugin-enhance](https://github.com/urzz/dsh-plugin-enhance)。
 
 ## 使用
 
@@ -41,6 +41,48 @@ Host 使用 ESM JavaScript；`build` 用 esbuild 将客户端源码与 Remote �
 
 ## 打包与后续安装
 
-发布清单包含 Host、Client、Remote 描述、bundle patch、语言包和图标。没有需要授权的构建脚本，也不需要 Git 安装的 `prepare` 构建。获得远程地址后可将本仓库推送到 GitHub，再通过 DSH 官方插件管理器按该地址安装；也可在发布 npm 包后按包名安装。安装属于使用者的后续操作，本次开发不会将插件装入正在运行的 DSH。
+发布清单包含 Host、Client、Remote 描述、bundle patch、语言包和图标。没有需要授权的构建脚本，也不需要 Git 安装的 `prepare` 构建。可通过 DSH 官方插件管理器按 GitHub 地址安装；npm 发布后，也可按包名安装：
+
+```sh
+dsh plugin --profile web add dsh-plugin-enhance@latest
+```
 
 配置字段 `pnpmCommand`（默认 `pnpm`）和 `lookupTimeoutMs`（默认 20000 毫秒）可由 bundle 配置覆盖；profile 自带的包管理启动器优先于 `pnpmCommand`。
+
+## 自动发布到 npm
+
+[发布 workflow](.github/workflows/publish.yml) 在推送 `v*` 标签时运行，使用 Node.js 24、npm 11 和 GitHub 托管的 Ubuntu runner。标签必须等于 `v` 加包版本（例如版本 `0.1.2` 对应 `v0.1.2`）；通过依赖安装、构建与测试后，使用 npm Trusted Publishing（OIDC）发布并附带 provenance。正式版使用 `latest`，含预发布标识的版本（如 `0.2.0-rc.1`）使用 `next`。
+
+### 首次配置
+
+1. 将 workflow 推送到 `urzz/dsh-plugin-enhance`。如果 npm 上尚未创建该包，先在本地完成首次发布，建立包的所有权：
+
+   ```sh
+   npm ci --ignore-scripts
+   npm run check
+   npm login --registry=https://registry.npmjs.org
+   npm publish --access public --registry=https://registry.npmjs.org
+   ```
+
+2. 在 npm 包的 **Settings → Trusted Publisher** 中添加 GitHub Actions，填写以下字段：
+
+   | 字段 | 值 |
+   | --- | --- |
+   | Organization or user | `urzz` |
+   | Repository | `dsh-plugin-enhance` |
+   | Workflow filename | `publish.yml` |
+   | Environment name | 留空 |
+
+   若设置页提供允许的操作选项，启用直接发布的 `npm publish` 权限。此 workflow 不需要配置 `NPM_TOKEN` Secret。详细要求见 [npm Trusted Publishing 文档](https://docs.npmjs.com/trusted-publishers/)。
+
+### 发布后续版本
+
+例如，当前 `0.1.2` 已首次发布后，在工作区干净时执行：
+
+```sh
+npm version patch
+git push origin main
+git push origin v0.1.3
+```
+
+`npm version patch` 将版本更新为 `0.1.3`，同步锁文件，并创建版本提交和 `v0.1.3` 标签。推送标签后到 GitHub Actions 查看发布结果。也可以使用 `npm version <具体版本>` 发布其他版本，并推送对应标签。npm 不允许覆盖已发布的同一版本；首次手动发布后，应提升版本再触发自动发布。

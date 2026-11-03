@@ -4,6 +4,10 @@
   "description": "Check and selectively update installed DSH plugin bundles",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/urzz/dsh-plugin-enhance.git"
+  },
   "engines": { "node": ">=22", "dsh": "0.2.1-rc.5" },
   "exports": {
     ".": "./index.js",
