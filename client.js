@@ -231,6 +231,9 @@ var inject = ["slots", "locale", "remote"];
 async function apply(ctx) {
   const unmount = await ctx.remote.$mount(TYPERT_REMOTE);
   ctx.effect(() => unmount);
+  await ctx.inject(["remote.pluginEnhance"], registerUpdates);
+}
+function registerUpdates(ctx) {
   const ns = "dsh-plugin-enhance";
   ctx.effect(() => ctx.locale.register(ns, copy));
   const t = ctx.locale.bind(ns);

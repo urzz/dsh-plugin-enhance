@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
 import * as zod from 'zod';
+import { Context, Service } from '@deepseek-ai/cordis';
+import * as gatewayClient from '@deepseek-ai/dsh-api-gateway/client';
 
 const source = await readFile(new URL('../client.js', import.meta.url), 'utf8');
 
@@ -47,6 +49,11 @@ test('update tab registers localized UI, selects only ready bundles and forwards
     locale: { register(ns, dicts) { assert.equal(ns, 'dsh-plugin-enhance'); dictionaries = dicts; return () => {}; }, bind: () => key => dictionaries.en[key], subscribe: () => () => {}, getSnapshot: () => ({ revision: 1 }) },
     slots: { inject(name, callback) { assert.equal(name, 'plugins.tab'); callback(); }, register(options, component) { registration = options; Component = component; return () => {}; } },
     remote,
+    inject(keys, callback) {
+      assert.deepEqual(Array.from(keys), ['remote.pluginEnhance']);
+      assert.ok(remote.pluginEnhance, 'namespace must be mounted before injection');
+      return callback(this);
+    },
   });
   assert.equal(registration, undefined);
   assert.equal(remote.pluginEnhance, undefined);
@@ -73,6 +80,63 @@ test('update tab registers localized UI, selects only ready bundles and forwards
   for (const cleanup of resources.reverse()) await cleanup?.();
   assert.equal(unmounted, true);
   assert.equal(remote.pluginEnhance, undefined);
+});
+
+test('real Cordis and Client Remote allow the update tab to poll, check and unload', async () => {
+  let plugin, Component, dictionaries;
+  let tree;
+  const effects = [];
+  const calls = [];
+  const snapshot = { generation: 0, items: [], marketErrors: [] };
+  const React = {
+    createElement: (type, props, ...children) => ({ type, props: props ?? {}, children: children.flat(Infinity).filter(value => value !== null && value !== undefined && value !== false) }),
+    useState: value => [value, () => {}],
+    useRef: value => ({ current: value }),
+    useSyncExternalStore() {},
+    useEffect(callback) { effects.push(callback()); },
+  };
+  vm.runInNewContext(source, { window: { __ModuleLoader__: { load(value) { plugin = value.factory(name => name === 'zod' ? zod : React); } } }, setTimeout: () => 0, clearTimeout() {} });
+  const ctx = new Context();
+  let mounted = false;
+  ctx.provide('typert', { remotes: { register() { mounted = true; return () => { mounted = false; }; } } });
+  ctx.provide('connection', {
+    interactions: 'none',
+    start: () => ({ stop() {} }),
+    rpc: {
+      open() {},
+      async call(path, endpoint) { calls.push([path, endpoint]); return { ok: true, value: snapshot }; },
+    },
+  });
+  ctx.provide('locale', {
+    register(ns, dicts) { dictionaries = dicts; return () => {}; },
+    bind: () => key => dictionaries.en[key], subscribe: () => () => {}, getSnapshot: () => ({}),
+  });
+  class Slots extends Service {
+    constructor(ctx) { super(ctx, 'slots'); }
+    inject(name, callback) { this.ctx.effect(callback); }
+    register(options, component) { Component = component; return () => { Component = undefined; }; }
+  }
+  new Slots(ctx);
+  const gateway = ctx.plugin(gatewayClient);
+  await gateway;
+  const client = ctx.plugin(plugin);
+  try {
+    await client;
+    assert.equal(mounted, true);
+    tree = Component();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(calls, [['/api', 'pluginEnhance/status']]);
+    const flatten = node => typeof node !== 'object' ? [] : [node, ...node.children.flatMap(flatten)];
+    await flatten(tree).find(node => node.type === 'button' && node.children.includes('Check for updates')).props.onClick();
+    assert.deepEqual(calls.at(-1), ['/api', 'pluginEnhance/check']);
+  } finally {
+    for (const cleanup of effects) cleanup?.();
+    await client.dispose();
+    await gateway.dispose();
+  }
+  assert.equal(Component, undefined);
+  assert.equal(mounted, false);
+  assert.equal(ctx.get('remote.pluginEnhance'), undefined);
 });
 
 test('failed Remote mounting rejects activation before registering the update tab', async () => {
