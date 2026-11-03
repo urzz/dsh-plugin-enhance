@@ -1,4 +1,6 @@
-# dsh-plugin-enhance
+# 插件增强 · Plugin enhance
+
+包名：`dsh-plugin-enhance`。图标使用蓝色底、循环箭头和四个模块方块，表示插件组合包更新。
 
 为 DSH 插件管理页增加「更新」标签页，支持检查更新、勾选批量更新、一键更新全部可更新项，以及重试失败项。Host 服务和 `plugin_enhance` 工具使用同一更新引擎。
 
