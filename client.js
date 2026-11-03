@@ -1,74 +1,322 @@
-window.__ModuleLoader__.load({
-  id: 'dsh-plugin-enhance',
-  factory(require) {
-    const React = require('react');
-    const h = React.createElement;
-    const copy = {
-      en: { tab: 'Updates', title: 'Plugin updates', check: 'Check for updates', selected: 'Update selected', all: 'Update all available', selectAll: 'Select all available', retry: 'Retry failed updates', empty: 'Check for updates to load installed bundles.', none: 'No installed bundles.', busy: 'Working…', name: 'Plugin', version: 'Version', state: 'Status', details: 'Details', notice: 'Updates uninstall the old bundle before installing the new version. An installation failure can leave it uninstalled. Some changes require restarting DSH. Build scripts require separate approval in the plugin manager.', enabled: 'Enabled', disabled: 'Disabled', pending: 'Review pending build scripts in the plugin manager before retrying.', loading: 'Loading…', ready: 'Update available', current: 'Up to date', skipped: 'Skipped', error: 'Failed', failed: 'Failed', updating: 'Updating', updated: 'Updated', succeeded: 'Updated', 'restart-required': 'Restart required', 'pending-builds': 'Build approval required', confirm: 'I understand that a failed update may leave a plugin uninstalled.', source: 'Source', blocked: 'Unavailable', 'check-failed': 'Check failed', removing: 'Removing old version', installing: 'Installing', stale: 'Changed; check again', self: 'The updater cannot update itself.', builtin: 'Updated with DSH.', 'not-installed': 'Not installed in this profile.', 'not-removable': 'Protected bundle.', 'local-or-unknown-source': 'Local or unknown source.', 'invalid-current-version': 'Invalid installed version.', incompatible: 'Incompatible with this DSH version.', 'unsupported-source': 'This source needs a manual update.', 'market-unavailable': 'Market unavailable; check again before switching sources.', 'not-bundle': 'The target is not a bundle.', 'bundle-changed': 'The installed bundle changed; check again.', 'installed-target-mismatch': 'The installed version differs from the requested target.' },
-      zh: { tab: '更新', title: '插件更新', check: '检查更新', selected: '更新所选', all: '更新全部可更新项', selectAll: '全选可更新项', retry: '重试失败项', empty: '点击检查更新，读取已安装组合包。', none: '没有已安装组合包。', busy: '正在处理…', name: '插件', version: '版本', state: '状态', details: '详情', notice: '更新会先卸载旧组合包，再安装新版本。安装失败可能导致插件处于未安装状态；部分变更需要重启 DSH。构建脚本需要在插件管理器中单独授权。', enabled: '已启用', disabled: '已停用', pending: '请在插件管理器中检查并授权待处理的构建脚本，然后重试。', loading: '加载中…', ready: '可更新', current: '已是最新', skipped: '已跳过', error: '失败', failed: '失败', updating: '更新中', updated: '已更新', succeeded: '已更新', 'restart-required': '需要重启', 'pending-builds': '需要脚本授权', confirm: '我已了解更新失败可能导致插件处于未安装状态。', source: '来源', blocked: '不可更新', 'check-failed': '检查失败', removing: '正在卸载旧版', installing: '正在安装', stale: '状态已变化，请重新检查', self: '更新器自身暂不支持更新。', builtin: '随 DSH 一起升级。', 'not-installed': '当前 profile 未安装。', 'not-removable': '受保护的组合包。', 'local-or-unknown-source': '本地或未知来源。', 'invalid-current-version': '已安装版本号无效。', incompatible: '目标版本与当前 DSH 不兼容。', 'unsupported-source': '此来源需要手动更新。', 'market-unavailable': '市场不可用，请重新检查后再更新。', 'not-bundle': '目标包不是组合包。', 'bundle-changed': '插件状态已变化，请重新检查。', 'installed-target-mismatch': '实际安装版本与目标不一致。' },
-    };
-    return {
-      inject: ['slots', 'locale', 'remote', 'remote.pluginEnhance'],
-      apply(ctx) {
-        const ns = 'dsh-plugin-enhance';
-        ctx.effect(() => ctx.locale.register(ns, copy));
-        const t = ctx.locale.bind(ns);
-        function Updates() {
-          React.useSyncExternalStore(fn => ctx.locale.subscribe(fn), () => ctx.locale.getSnapshot());
-          const [data, setData] = React.useState(null);
-          const [selection, setSelection] = React.useState([]);
-          const [error, setError] = React.useState('');
-          const [working, setWorking] = React.useState(false);
-          const mounted = React.useRef(true);
-          async function call(method, args) {
-            const result = await ctx.remote.pluginEnhance[method](...(args === undefined ? [] : [args]));
-            if (!result.ok) throw result.error;
-            return result.value;
-          }
-          React.useEffect(() => {
-            mounted.current = true;
-            let timer;
-            async function refresh() {
-              try { const next = await call('status'); if (mounted.current) setData(next); }
-              catch (e) { if (mounted.current) setError(e.message); }
-              if (mounted.current) timer = setTimeout(refresh, 1200);
-            }
-            refresh();
-            return () => { mounted.current = false; clearTimeout(timer); };
-          }, []);
-          async function execute(method, args) {
-            setWorking(true); setError('');
-            try { const next = await call(method, args); if (mounted.current) { setData(next); setSelection([]); } }
-            catch (e) { if (mounted.current) setError(e.message); }
-            finally { if (mounted.current) setWorking(false); }
-          }
-          const items = data?.items ?? [];
-          const available = items.filter(item => item.state === 'ready');
-          const busy = working || Boolean(data?.busy);
-          const stateText = value => Object.hasOwn(copy.en, value) ? t(value) : value;
-          const button = (label, action, disabled) => h('button', { type: 'button', onClick: action, disabled, className: 'dpe-button' }, t(label));
-          return h('section', { className: 'dpe', 'aria-busy': busy },
-            h('style', null, '.dpe{color:var(--dsw-alias-label-primary);padding:20px;max-width:1100px;margin:auto}.dpe-toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}.dpe-button{font:inherit;color:inherit;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:8px 12px;cursor:pointer}.dpe-button:disabled{opacity:.45;cursor:default}.dpe-button:focus-visible,.dpe input:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}.dpe-notice{color:var(--dsw-alias-label-secondary);line-height:1.6}.dpe-scroll{overflow-x:auto}.dpe table{border-collapse:collapse;width:100%;margin-top:16px;font-size:13px}.dpe th,.dpe td{padding:12px 8px;border-bottom:1px solid var(--dsw-alias-border-l1);text-align:left;vertical-align:top}.dpe small{display:block;color:var(--dsw-alias-label-secondary);margin-top:4px}.dpe-error{color:var(--dsw-alias-state-error-primary);white-space:pre-wrap}.dpe pre{white-space:pre-wrap;overflow-wrap:anywhere}'),
-            h('h2', null, t('title')), h('p', { className: 'dpe-notice' }, t('notice')),
-            h('div', { className: 'dpe-toolbar' },
-              button('check', () => execute('check'), busy),
-              button('selectAll', () => setSelection(available.map(item => item.name)), busy || !available.length),
-              button('selected', () => execute('start', { generation: data.generation, names: selection }), busy || !selection.length),
-              button('all', () => execute('start', { generation: data.generation, names: available.map(item => item.name) }), busy || !available.length),
-              button('retry', () => execute('retry', {}), busy || !items.some(item => item.retryable))),
-            busy && h('p', { role: 'status' }, t('busy')),
-            error && h('p', { className: 'dpe-error', role: 'alert' }, error),
-            !items.length ? h('p', null, t(data?.checkedAt ? 'none' : 'empty')) : h('div', { className: 'dpe-scroll' }, h('table', null,
-              h('thead', null, h('tr', null, ...['name', 'version', 'state', 'details'].map(key => h('th', { key }, t(key))))),
-              h('tbody', null, items.map(item => h('tr', { key: item.name },
-                h('td', null, h('label', null, h('input', { type: 'checkbox', 'aria-label': item.name, disabled: busy || item.state !== 'ready', checked: selection.includes(item.name), onChange: e => setSelection(values => e.target.checked ? [...values, item.name] : values.filter(value => value !== item.name)) }), ' ', item.name), h('small', null, t(item.enabled ? 'enabled' : 'disabled'))),
-                h('td', null, item.currentVersion, item.target && ` → ${item.target.version}`),
-                h('td', null, stateText(item.state)),
-                h('td', null, item.reason && stateText(item.reason), item.state === 'pending-builds' && h('p', null, t('pending')), h('small', null, item.source))))))),
-            data?.marketErrors?.map(entry => h('p', { key: entry.url, className: 'dpe-error', role: 'alert' }, `${entry.url}: ${entry.message}`)));
-        }
-        ctx.slots.inject('plugins.tab', () => ctx.slots.register({ name: 'plugins.tab', id: 'dsh-plugin-enhance-updates', order: 30, label: () => t('tab') }, Updates));
-      },
-    };
-  },
+window.__ModuleLoader__.load({id:'dsh-plugin-enhance',factory(require){const module={exports:{}};
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+// client.source.js
+var client_source_exports = {};
+__export(client_source_exports, {
+  apply: () => apply,
+  inject: () => inject
 });
+module.exports = __toCommonJS(client_source_exports);
+
+// typert.remote-client.js
+var import_zod = require("zod");
+
+// node_modules/@deepseek-ai/dsh-typert-protocol/lib/types/remote-info.js
+function createTypertRemoteInfo(spec, zod) {
+  return new RemoteInfo(spec, zod);
+}
+var RemoteInfo = class {
+  spec;
+  zod;
+  index;
+  constructor(spec, zod) {
+    this.spec = spec;
+    this.zod = zod;
+  }
+  get package() {
+    return this.spec.package;
+  }
+  get descriptors() {
+    return this.resolve().descriptors;
+  }
+  get methods() {
+    return this.resolve().methods;
+  }
+  resolve() {
+    if (this.index !== void 0)
+      return this.index;
+    const zod = this.zod;
+    const descriptors = [];
+    const methods = /* @__PURE__ */ Object.create(null);
+    for (const [endpoint, definition] of Object.entries(this.spec.methods)) {
+      const separator = endpoint.indexOf("/");
+      const namespace = endpoint.slice(0, separator);
+      const method2 = endpoint.slice(separator + 1);
+      const parameters = definition.parameters.map((parameter2) => ({ ...parameter2, wire: parameter2.wire ?? parameter2.name }));
+      const descriptor = {
+        ...definition,
+        id: `${this.spec.package}#${endpoint}`,
+        namespace,
+        method: method2,
+        parameters,
+        result: definition.result.description === void 0 ? definition.result : new ResultValue(definition.result)
+      };
+      if (definition.invocation.kind === "direct") {
+        const inputs = [];
+        const direct = Object.assign(descriptor, {
+          input(options) {
+            const strict = options?.strict === true;
+            return inputs[strict ? 1 : 0] ??= new NamedInput(parameters, strict, zod);
+          },
+          invoke(remote, input, signal) {
+            const named = input;
+            const values = parameters.map((parameter2) => named[parameter2.wire]);
+            if (definition.cancellation !== void 0)
+              values.push(signal);
+            const receiver = Reflect.get(remote, namespace);
+            const call = Reflect.get(receiver, method2);
+            return call.apply(receiver, values);
+          }
+        });
+        methods[endpoint] = direct;
+      }
+      descriptors.push(descriptor);
+    }
+    return this.index = { descriptors, methods };
+  }
+};
+function optional(parameter2) {
+  return parameter2.source === "json" && parameter2.acceptsUndefined === true;
+}
+var NamedInput = class {
+  parameters;
+  strict;
+  zod;
+  schema;
+  projection;
+  constructor(parameters, strict, zod) {
+    this.parameters = parameters;
+    this.strict = strict;
+    this.zod = zod;
+  }
+  codec(parameter2) {
+    return this.strict ? parameter2.strictCodec : parameter2.codec;
+  }
+  create = () => this.schema ??= this.zod.strictObject(Object.fromEntries(this.parameters.map((parameter2) => {
+    const value = this.codec(parameter2).create();
+    return [parameter2.wire, optional(parameter2) ? value.optional() : value.nonoptional()];
+  })));
+  get jsonSchema() {
+    return this.project().jsonSchema;
+  }
+  get jsonSchemaError() {
+    return this.project().jsonSchemaError;
+  }
+  project() {
+    if (this.projection !== void 0)
+      return this.projection;
+    const unavailable = this.parameters.find((parameter2) => this.codec(parameter2).jsonSchema === void 0);
+    if (unavailable !== void 0) {
+      return this.projection = { jsonSchemaError: this.codec(unavailable).jsonSchemaError ?? `No JSON Schema for parameter ${unavailable.wire}` };
+    }
+    return this.projection = {
+      jsonSchema: {
+        type: "object",
+        properties: Object.fromEntries(this.parameters.map((parameter2) => [parameter2.wire, {
+          ...this.codec(parameter2).jsonSchema,
+          ...parameter2.description === void 0 ? {} : { description: parameter2.description }
+        }])),
+        required: this.parameters.filter((parameter2) => !optional(parameter2)).map((parameter2) => parameter2.wire),
+        additionalProperties: false
+      }
+    };
+  }
+};
+var ResultValue = class {
+  spec;
+  projection;
+  constructor(spec) {
+    this.spec = spec;
+  }
+  get mode() {
+    return this.spec.mode;
+  }
+  get typeSymbol() {
+    return this.spec.typeSymbol;
+  }
+  get create() {
+    return this.spec.create;
+  }
+  get decode() {
+    return this.spec.decode;
+  }
+  get encode() {
+    return this.spec.encode;
+  }
+  get description() {
+    return this.spec.description;
+  }
+  get jsonSchemaError() {
+    return this.spec.jsonSchemaError;
+  }
+  get jsonSchema() {
+    if (this.projection === void 0) {
+      const schema = this.spec.jsonSchema;
+      this.projection = { value: schema === void 0 ? void 0 : { ...schema, description: this.spec.description } };
+    }
+    return this.projection.value;
+  }
+};
+
+// typert.remote-client.js
+var codec = (name, create) => ({
+  mode: "strict",
+  typeSymbol: `dsh-plugin-enhance#${name}`,
+  create,
+  get jsonSchema() {
+    return import_zod.z.toJSONSchema(create());
+  }
+});
+var selection = () => import_zod.z.strictObject({ generation: import_zod.z.number().int().nonnegative(), names: import_zod.z.array(import_zod.z.string().min(1)).min(1) });
+var retry = () => import_zod.z.strictObject({ names: import_zod.z.array(import_zod.z.string().min(1)).min(1).optional() });
+var snapshot = () => import_zod.z.record(import_zod.z.string(), import_zod.z.json());
+var parameter = (name, create) => ({
+  name,
+  source: "json",
+  codec: codec(name, create),
+  strictCodec: codec(name, create)
+});
+var method = (description, parameters) => ({
+  service: "pluginEnhance",
+  invocation: { kind: "direct" },
+  description,
+  parameters,
+  result: codec("Snapshot", snapshot)
+});
+var TYPERT_REMOTE = createTypertRemoteInfo({
+  package: "dsh-plugin-enhance",
+  methods: {
+    "pluginEnhance/check": method("Check installed bundles for compatible updates.", []),
+    "pluginEnhance/start": method("Queue updates for selected checked bundles.", [parameter("selection", selection)]),
+    "pluginEnhance/status": method("Read the current update queue and outcomes.", []),
+    "pluginEnhance/retry": method("Retry one failed update without granting build permission.", [parameter("selection", retry)])
+  }
+}, import_zod.z);
+
+// client.source.js
+var React = __toESM(require("react"), 1);
+var h = React.createElement;
+var copy = {
+  en: { tab: "Updates", title: "Plugin updates", check: "Check for updates", selected: "Update selected", all: "Update all available", selectAll: "Select all available", retry: "Retry failed updates", empty: "Check for updates to load installed bundles.", none: "No installed bundles.", busy: "Working\u2026", name: "Plugin", version: "Version", state: "Status", details: "Details", notice: "Updates uninstall the old bundle before installing the new version. An installation failure can leave it uninstalled. Some changes require restarting DSH. Build scripts require separate approval in the plugin manager.", enabled: "Enabled", disabled: "Disabled", pending: "Review pending build scripts in the plugin manager before retrying.", loading: "Loading\u2026", ready: "Update available", current: "Up to date", skipped: "Skipped", error: "Failed", failed: "Failed", updating: "Updating", updated: "Updated", succeeded: "Updated", "restart-required": "Restart required", "pending-builds": "Build approval required", confirm: "I understand that a failed update may leave a plugin uninstalled.", source: "Source", blocked: "Unavailable", "check-failed": "Check failed", removing: "Removing old version", installing: "Installing", stale: "Changed; check again", self: "The updater cannot update itself.", builtin: "Updated with DSH.", "not-installed": "Not installed in this profile.", "not-removable": "Protected bundle.", "local-or-unknown-source": "Local or unknown source.", "invalid-current-version": "Invalid installed version.", incompatible: "Incompatible with this DSH version.", "unsupported-source": "This source needs a manual update.", "market-unavailable": "Market unavailable; check again before switching sources.", "not-bundle": "The target is not a bundle.", "bundle-changed": "The installed bundle changed; check again.", "installed-target-mismatch": "The installed version differs from the requested target." },
+  zh: { tab: "\u66F4\u65B0", title: "\u63D2\u4EF6\u66F4\u65B0", check: "\u68C0\u67E5\u66F4\u65B0", selected: "\u66F4\u65B0\u6240\u9009", all: "\u66F4\u65B0\u5168\u90E8\u53EF\u66F4\u65B0\u9879", selectAll: "\u5168\u9009\u53EF\u66F4\u65B0\u9879", retry: "\u91CD\u8BD5\u5931\u8D25\u9879", empty: "\u70B9\u51FB\u68C0\u67E5\u66F4\u65B0\uFF0C\u8BFB\u53D6\u5DF2\u5B89\u88C5\u7EC4\u5408\u5305\u3002", none: "\u6CA1\u6709\u5DF2\u5B89\u88C5\u7EC4\u5408\u5305\u3002", busy: "\u6B63\u5728\u5904\u7406\u2026", name: "\u63D2\u4EF6", version: "\u7248\u672C", state: "\u72B6\u6001", details: "\u8BE6\u60C5", notice: "\u66F4\u65B0\u4F1A\u5148\u5378\u8F7D\u65E7\u7EC4\u5408\u5305\uFF0C\u518D\u5B89\u88C5\u65B0\u7248\u672C\u3002\u5B89\u88C5\u5931\u8D25\u53EF\u80FD\u5BFC\u81F4\u63D2\u4EF6\u5904\u4E8E\u672A\u5B89\u88C5\u72B6\u6001\uFF1B\u90E8\u5206\u53D8\u66F4\u9700\u8981\u91CD\u542F DSH\u3002\u6784\u5EFA\u811A\u672C\u9700\u8981\u5728\u63D2\u4EF6\u7BA1\u7406\u5668\u4E2D\u5355\u72EC\u6388\u6743\u3002", enabled: "\u5DF2\u542F\u7528", disabled: "\u5DF2\u505C\u7528", pending: "\u8BF7\u5728\u63D2\u4EF6\u7BA1\u7406\u5668\u4E2D\u68C0\u67E5\u5E76\u6388\u6743\u5F85\u5904\u7406\u7684\u6784\u5EFA\u811A\u672C\uFF0C\u7136\u540E\u91CD\u8BD5\u3002", loading: "\u52A0\u8F7D\u4E2D\u2026", ready: "\u53EF\u66F4\u65B0", current: "\u5DF2\u662F\u6700\u65B0", skipped: "\u5DF2\u8DF3\u8FC7", error: "\u5931\u8D25", failed: "\u5931\u8D25", updating: "\u66F4\u65B0\u4E2D", updated: "\u5DF2\u66F4\u65B0", succeeded: "\u5DF2\u66F4\u65B0", "restart-required": "\u9700\u8981\u91CD\u542F", "pending-builds": "\u9700\u8981\u811A\u672C\u6388\u6743", confirm: "\u6211\u5DF2\u4E86\u89E3\u66F4\u65B0\u5931\u8D25\u53EF\u80FD\u5BFC\u81F4\u63D2\u4EF6\u5904\u4E8E\u672A\u5B89\u88C5\u72B6\u6001\u3002", source: "\u6765\u6E90", blocked: "\u4E0D\u53EF\u66F4\u65B0", "check-failed": "\u68C0\u67E5\u5931\u8D25", removing: "\u6B63\u5728\u5378\u8F7D\u65E7\u7248", installing: "\u6B63\u5728\u5B89\u88C5", stale: "\u72B6\u6001\u5DF2\u53D8\u5316\uFF0C\u8BF7\u91CD\u65B0\u68C0\u67E5", self: "\u66F4\u65B0\u5668\u81EA\u8EAB\u6682\u4E0D\u652F\u6301\u66F4\u65B0\u3002", builtin: "\u968F DSH \u4E00\u8D77\u5347\u7EA7\u3002", "not-installed": "\u5F53\u524D profile \u672A\u5B89\u88C5\u3002", "not-removable": "\u53D7\u4FDD\u62A4\u7684\u7EC4\u5408\u5305\u3002", "local-or-unknown-source": "\u672C\u5730\u6216\u672A\u77E5\u6765\u6E90\u3002", "invalid-current-version": "\u5DF2\u5B89\u88C5\u7248\u672C\u53F7\u65E0\u6548\u3002", incompatible: "\u76EE\u6807\u7248\u672C\u4E0E\u5F53\u524D DSH \u4E0D\u517C\u5BB9\u3002", "unsupported-source": "\u6B64\u6765\u6E90\u9700\u8981\u624B\u52A8\u66F4\u65B0\u3002", "market-unavailable": "\u5E02\u573A\u4E0D\u53EF\u7528\uFF0C\u8BF7\u91CD\u65B0\u68C0\u67E5\u540E\u518D\u66F4\u65B0\u3002", "not-bundle": "\u76EE\u6807\u5305\u4E0D\u662F\u7EC4\u5408\u5305\u3002", "bundle-changed": "\u63D2\u4EF6\u72B6\u6001\u5DF2\u53D8\u5316\uFF0C\u8BF7\u91CD\u65B0\u68C0\u67E5\u3002", "installed-target-mismatch": "\u5B9E\u9645\u5B89\u88C5\u7248\u672C\u4E0E\u76EE\u6807\u4E0D\u4E00\u81F4\u3002" }
+};
+var inject = ["slots", "locale", "remote"];
+async function apply(ctx) {
+  const unmount = await ctx.remote.$mount(TYPERT_REMOTE);
+  ctx.effect(() => unmount);
+  const ns = "dsh-plugin-enhance";
+  ctx.effect(() => ctx.locale.register(ns, copy));
+  const t = ctx.locale.bind(ns);
+  function Updates() {
+    React.useSyncExternalStore((fn) => ctx.locale.subscribe(fn), () => ctx.locale.getSnapshot());
+    const [data, setData] = React.useState(null);
+    const [selection2, setSelection] = React.useState([]);
+    const [error, setError] = React.useState("");
+    const [working, setWorking] = React.useState(false);
+    const mounted = React.useRef(true);
+    async function call(method2, args) {
+      const result = await ctx.remote.pluginEnhance[method2](...args === void 0 ? [] : [args]);
+      if (!result.ok) throw result.error;
+      return result.value;
+    }
+    React.useEffect(() => {
+      mounted.current = true;
+      let timer;
+      async function refresh() {
+        try {
+          const next = await call("status");
+          if (mounted.current) setData(next);
+        } catch (e) {
+          if (mounted.current) setError(e.message);
+        }
+        if (mounted.current) timer = setTimeout(refresh, 1200);
+      }
+      refresh();
+      return () => {
+        mounted.current = false;
+        clearTimeout(timer);
+      };
+    }, []);
+    async function execute(method2, args) {
+      setWorking(true);
+      setError("");
+      try {
+        const next = await call(method2, args);
+        if (mounted.current) {
+          setData(next);
+          setSelection([]);
+        }
+      } catch (e) {
+        if (mounted.current) setError(e.message);
+      } finally {
+        if (mounted.current) setWorking(false);
+      }
+    }
+    const items = data?.items ?? [];
+    const available = items.filter((item) => item.state === "ready");
+    const busy = working || Boolean(data?.busy);
+    const stateText = (value) => Object.hasOwn(copy.en, value) ? t(value) : value;
+    const button = (label, action, disabled) => h("button", { type: "button", onClick: action, disabled, className: "dpe-button" }, t(label));
+    return h(
+      "section",
+      { className: "dpe", "aria-busy": busy },
+      h("style", null, ".dpe{color:var(--dsw-alias-label-primary);padding:20px;max-width:1100px;margin:auto}.dpe-toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}.dpe-button{font:inherit;color:inherit;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:8px 12px;cursor:pointer}.dpe-button:disabled{opacity:.45;cursor:default}.dpe-button:focus-visible,.dpe input:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}.dpe-notice{color:var(--dsw-alias-label-secondary);line-height:1.6}.dpe-scroll{overflow-x:auto}.dpe table{border-collapse:collapse;width:100%;margin-top:16px;font-size:13px}.dpe th,.dpe td{padding:12px 8px;border-bottom:1px solid var(--dsw-alias-border-l1);text-align:left;vertical-align:top}.dpe small{display:block;color:var(--dsw-alias-label-secondary);margin-top:4px}.dpe-error{color:var(--dsw-alias-state-error-primary);white-space:pre-wrap}.dpe pre{white-space:pre-wrap;overflow-wrap:anywhere}"),
+      h("h2", null, t("title")),
+      h("p", { className: "dpe-notice" }, t("notice")),
+      h(
+        "div",
+        { className: "dpe-toolbar" },
+        button("check", () => execute("check"), busy),
+        button("selectAll", () => setSelection(available.map((item) => item.name)), busy || !available.length),
+        button("selected", () => execute("start", { generation: data.generation, names: selection2 }), busy || !selection2.length),
+        button("all", () => execute("start", { generation: data.generation, names: available.map((item) => item.name) }), busy || !available.length),
+        button("retry", () => execute("retry", {}), busy || !items.some((item) => item.retryable))
+      ),
+      busy && h("p", { role: "status" }, t("busy")),
+      error && h("p", { className: "dpe-error", role: "alert" }, error),
+      !items.length ? h("p", null, t(data?.checkedAt ? "none" : "empty")) : h("div", { className: "dpe-scroll" }, h(
+        "table",
+        null,
+        h("thead", null, h("tr", null, ...["name", "version", "state", "details"].map((key) => h("th", { key }, t(key))))),
+        h("tbody", null, items.map((item) => h(
+          "tr",
+          { key: item.name },
+          h("td", null, h("label", null, h("input", { type: "checkbox", "aria-label": item.name, disabled: busy || item.state !== "ready", checked: selection2.includes(item.name), onChange: (e) => setSelection((values) => e.target.checked ? [...values, item.name] : values.filter((value) => value !== item.name)) }), " ", item.name), h("small", null, t(item.enabled ? "enabled" : "disabled"))),
+          h("td", null, item.currentVersion, item.target && ` \u2192 ${item.target.version}`),
+          h("td", null, stateText(item.state)),
+          h("td", null, item.reason && stateText(item.reason), item.state === "pending-builds" && h("p", null, t("pending")), h("small", null, item.source))
+        )))
+      )),
+      data?.marketErrors?.map((entry) => h("p", { key: entry.url, className: "dpe-error", role: "alert" }, `${entry.url}: ${entry.message}`))
+    );
+  }
+  ctx.slots.inject("plugins.tab", () => ctx.slots.register({ name: "plugins.tab", id: "dsh-plugin-enhance-updates", order: 30, label: () => t("tab") }, Updates));
+}
+return module.exports;}});

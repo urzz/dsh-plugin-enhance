@@ -33,9 +33,9 @@ npm run check
 npm pack --dry-run
 ```
 
-项目使用可直接发布的 ESM JavaScript，没有转译产物。`build` 检查所有发布入口的语法；测试覆盖纯引擎、真实 Cordis/Typert 网关以及界面交互契约，全部使用假包管理器，不真实安装或卸载插件。完整测试需要清单中的 DSH peer 与开发依赖可解析。
+Host 使用 ESM JavaScript；`build` 用 esbuild 将客户端源码与 Remote 描述打包为浏览器入口，再检查所有发布入口的语法。React 与 Zod 由 DSH 客户端提供。测试覆盖纯引擎、真实 Cordis/Typert 网关、客户端 Remote 挂载与释放以及界面交互，全部使用假包管理器，不真实安装或卸载插件。完整测试需要清单中的 DSH peer 与开发依赖可解析。
 
-源码入口：[`engine.js`](engine.js) 负责发现与更新队列，[`index.js`](index.js) 提供 Host 服务、npm 适配和工具，[`client.js`](client.js) 注册更新标签页。Remote 描述分别由 [`typert.host.js`](typert.host.js) 和 [`typert.remote-client.js`](typert.remote-client.js) 提供。
+源码入口：[`engine.js`](engine.js) 负责发现与更新队列，[`index.js`](index.js) 提供 Host 服务、npm 适配和工具，[`client.source.js`](client.source.js) 挂载本插件的 Remote 描述后注册更新标签页，生成的 [`client.js`](client.js) 随仓库发布，安装时无需构建。Remote 描述分别由 [`typert.host.js`](typert.host.js) 和 [`typert.remote-client.js`](typert.remote-client.js) 提供。
 
 ## 打包与后续安装
 
