@@ -15,8 +15,9 @@ test('update tab registers localized UI, selects only ready bundles and forwards
   const effects = [];
   const calls = [];
   const initial = { generation: 7, checkedAt: 123, busy: false, items: [
-    { name: 'available', currentVersion: '1.0.0', state: 'ready', source: 'available@1', enabled: true, target: { version: '2.0.0' } },
+    ...['plugin-10', 'zeta', 'plugin-2', 'available', 'Alpha'].map(name => ({ name, currentVersion: '1.0.0', state: 'ready', source: `${name}@1`, enabled: true, target: { version: '2.0.0' } })),
     { name: 'protected', currentVersion: '1.0.0', state: 'blocked', source: 'file:../local', enabled: false, reason: 'not-removable' },
+    ...['current', 'check-failed', 'failed', 'pending-builds', 'stale', 'removing', 'installing', 'succeeded', 'restart-required'].map(state => ({ name: state, state, currentVersion: '1.0.0', source: `${state}@1`, enabled: true })),
   ], marketErrors: [] };
   const React = {
     createElement: (type, props, ...children) => ({ type, props: props ?? {}, children: children.flat(Infinity).filter(value => value !== null && value !== undefined && value !== false) }),
@@ -67,14 +68,41 @@ test('update tab registers localized UI, selects only ready bundles and forwards
   await new Promise(resolve => setImmediate(resolve));
   let nodes = flatten(render());
   const button = text => nodes.find(node => node.type === 'button' && node.children.includes(text));
+  const filter = () => nodes.find(node => node.type === 'label' && node.children.includes('Only show available updates')).children[0];
+  const headings = () => nodes.filter(node => node.type === 'h3').map(node => node.children[0]);
   assert.equal(button('Update selected').props.disabled, true);
+  assert.equal(filter().props.checked, true);
+  assert.deepEqual(headings(), ['Update available (5)']);
+  const rowNames = tree => flatten(tree).filter(node => node.type === 'input' && node.props['aria-label']).map(node => node.props['aria-label']);
+  assert.deepEqual(rowNames(render()), ['Alpha', 'available', 'plugin-2', 'plugin-10', 'zeta']);
+  assert.deepEqual(initial.items.slice(0, 5).map(item => item.name), ['plugin-10', 'zeta', 'plugin-2', 'available', 'Alpha']);
+  assert.equal(nodes.some(node => node.props['aria-label'] === 'protected'), false);
+  filter().props.onChange({ target: { checked: false } });
+  nodes = flatten(render());
+  assert.deepEqual(headings(), ['Update available (5)', 'Updating (2)', 'Needs attention (4)', 'Updated (2)', 'Up to date (1)', 'Unavailable (1)']);
+  assert.deepEqual(nodes.filter(node => node.type === 'table').map(rowNames), [
+    ['Alpha', 'available', 'plugin-2', 'plugin-10', 'zeta'],
+    ['installing', 'removing'],
+    ['check-failed', 'failed', 'pending-builds', 'stale'],
+    ['restart-required', 'succeeded'],
+    ['current'],
+    ['protected'],
+  ]);
   assert.equal(nodes.find(node => node.props['aria-label'] === 'protected').props.disabled, true);
+  assert.equal(nodes.filter(node => node.type === 'input' && node.props['aria-label']).length, initial.items.length);
+  filter().props.onChange({ target: { checked: true } });
+  nodes = flatten(render());
   button('Select all available').props.onClick();
   nodes = flatten(render());
   assert.equal(button('Update selected').props.disabled, false);
   await button('Update selected').props.onClick();
-  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [{ generation: 7, names: ['available'] }]);
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [{ generation: 7, names: ['Alpha', 'available', 'plugin-2', 'plugin-10', 'zeta'] }]);
   nodes = flatten(render());
+  assert.equal(filter().props.checked, true);
+  assert.ok(nodes.some(node => node.props.role === 'status' && node.children.includes(dictionaries.en.noAvailable)));
+  filter().props.onChange({ target: { checked: false } });
+  nodes = flatten(render());
+  assert.deepEqual(headings(), [`Updated (${initial.items.length})`]);
   assert.ok(nodes.some(node => node.type === 'td' && node.children.includes('Updated')));
   for (const cleanup of effects) cleanup?.();
   for (const cleanup of resources.reverse()) await cleanup?.();
