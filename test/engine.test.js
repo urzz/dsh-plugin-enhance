@@ -88,6 +88,60 @@ test('market refresh paginates with fetchedAt and permits Git targets', async ()
   assert.equal(check.items[0].target.spec, 'git+https://example.org/repo.git#abcdef');
 });
 
+test('GitHub source checks its repository and installs the resolved target preserving disabled state', async () => {
+  const source = 'github:owner/alpha#main';
+  const spec = 'git+https://github.com/owner/alpha.git#main';
+  const f = fixture([bundle('alpha', { source, enabled: false })], {
+    resolveNpmMetadata: () => { throw new Error('must not use npm'); },
+    resolveGithubMetadata: async input => {
+      assert.equal(input.source, source);
+      return { manifest: manifest('alpha'), spec };
+    },
+  });
+  f.manager.installBundle = async (target, options) => {
+    f.calls.push(['install', target, options]);
+    f.change([bundle('alpha', { source: target, version: '2.0.0', enabled: options.enabled })]);
+    return outcome({ bundle: 'alpha', version: '2.0.0' });
+  };
+  const check = await f.engine.check();
+  assert.deepEqual(check.items[0].target, { spec, version: '2.0.0', origin: 'github' });
+  const result = await f.engine.start({ generation: check.generation, names: ['alpha'] });
+  assert.equal(result.items[0].state, 'succeeded');
+  assert.equal(f.calls[1][1], spec);
+  assert.equal(f.calls[1][2].enabled, false);
+});
+
+test('GitHub candidates enforce package identity, bundle, compatibility and newer versions', async () => {
+  for (const [fields, state, reason] of [
+    [{ name: 'other' }, 'check-failed', 'github-package-name-mismatch'],
+    [{ dsh: undefined }, 'blocked', 'not-bundle'],
+    [{ engines: { dsh: '>=9' } }, 'blocked', 'incompatible'],
+    [{ version: 'broken' }, 'check-failed', 'invalid-target-version'],
+    [{ version: '1.0.0' }, 'current', null],
+    [{ version: '0.9.0' }, 'current', null],
+  ]) {
+    const f = fixture([bundle('alpha', { source: 'https://github.com/owner/alpha' })], {
+      resolveGithubMetadata: async () => ({ manifest: { ...manifest('alpha'), ...fields }, spec: 'github:owner/alpha' }),
+    });
+    const item = (await f.engine.check()).items[0];
+    assert.equal(item.state, state);
+    assert.equal(item.reason, reason);
+    assert.equal(f.calls.length, 0);
+  }
+});
+
+test('GitHub query failure and market failure remain visible without npm fallback', async () => {
+  const m = market([]);
+  const f = fixture([bundle('alpha', { source: 'github:owner/alpha' })], {
+    market: m,
+    resolveGithubMetadata: async () => { throw new Error('github lookup failed'); },
+    resolveNpmMetadata: () => { throw new Error('must not use npm'); },
+  });
+  assert.equal((await f.engine.check()).items[0].reason, 'github lookup failed');
+  m.search = async () => { throw new Error('market offline'); };
+  assert.equal((await f.engine.check()).items[0].reason, 'market-unavailable');
+});
+
 test('market uses compatible default instead of newest and passes registry unchanged', async () => {
   const m = market([entry([
     release('3.0.0', { compatibility: { compatible: false } }), release('2.0.0'),

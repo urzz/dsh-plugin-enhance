@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-enhance",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Check and selectively update installed DSH plugin bundles",
   "type": "module",
   "license": "MIT",
@@ -23,6 +23,7 @@
   "files": [
     "index.js",
     "engine.js",
+    "github.js",
     "client.js",
     "typert.host.js",
     "typert.remote-client.js",
@@ -33,7 +34,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "esbuild client.source.js --bundle --preserve-symlinks --platform=browser --format=cjs --external:react --external:zod --banner:js=\"window.__ModuleLoader__.load({id:'dsh-plugin-enhance',factory(require){const module={exports:{}};\" --footer:js=\"return module.exports;}});\" --outfile=client.js && node --check index.js && node --check engine.js && node --check client.js && node --check typert.host.js && node --check typert.remote-client.js",
+    "build": "esbuild client.source.js --bundle --preserve-symlinks --platform=browser --format=cjs --external:react --external:zod --banner:js=\"window.__ModuleLoader__.load({id:'dsh-plugin-enhance',factory(require){const module={exports:{}};\" --footer:js=\"return module.exports;}});\" --outfile=client.js && node --check index.js && node --check engine.js && node --check github.js && node --check client.js && node --check typert.host.js && node --check typert.remote-client.js",
     "test": "node --test",
     "check": "npm run build && npm test"
   },

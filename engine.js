@@ -1,4 +1,5 @@
 import semver from 'semver';
+import { parseGithubSource } from './github.js';
 
 const copy = value => structuredClone(value);
 const identity = bundle => bundle && JSON.stringify([
@@ -26,12 +27,14 @@ const successful = result => !result.error && !result.pendingBuilds?.length
  * no network client or registry fallback is implemented here. manifest is the exact
  * candidate release (normally npm's latest tag), including dsh/engines/peerDependencies.
  *
+ * resolveGithubMetadata({name, source, runtimeVersion}) returns {manifest, spec}
+ * for the original GitHub ref; the resolver never runs repository code.
  * snapshot/status return detached JSON-safe state. check refreshes market indexes.
  * start({generation,names}) and retry({names?}) settle after the serial batch finishes.
  * Poll status while either runs. Concurrent mutations reject with engine-busy.
  * Recovery is in-memory: callers needing restart persistence must store snapshots.
  */
-export function createUpdateEngine({ manager, market, resolveNpmMetadata, runtimeVersion, selfName }) {
+export function createUpdateEngine({ manager, market, resolveNpmMetadata, resolveGithubMetadata, runtimeVersion, selfName }) {
   let busy = false;
   let generation = 0;
   let checkedAt = null;
@@ -109,8 +112,17 @@ export function createUpdateEngine({ manager, market, resolveNpmMetadata, runtim
               item.reason = 'incompatible'; continue;
             }
             target = { ...release.install, version: release.version, origin: 'market' };
+          } else if (parseGithubSource(bundle.source)) {
+            if (marketErrors.length) { item.reason = 'market-unavailable'; continue; }
+            const { manifest, spec } = await resolveGithubMetadata({
+              name: bundle.name, source: bundle.source, runtimeVersion,
+            });
+            if (manifest.name !== bundle.name) throw new Error('github-package-name-mismatch');
+            if (manifest.dsh?.bundle === undefined) { item.reason = 'not-bundle'; continue; }
+            if (!manifestCompatible(manifest, runtimeVersion)) { item.reason = 'incompatible'; continue; }
+            target = { spec, version: manifest.version, origin: 'github' };
           } else {
-            // Git, tarball and npm aliases cannot safely be converted to name@latest.
+            // Other Git hosts, tarballs and npm aliases cannot be converted to name@latest.
             const prefix = `${bundle.name}@`;
             if (!bundle.source.startsWith(prefix)
               || !/^(?:latest|[~^<>=*\d]|[A-Za-z][\w.-]*$)/.test(bundle.source.slice(prefix.length))

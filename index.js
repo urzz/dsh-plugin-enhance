@@ -8,6 +8,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools';
 import { approveEscalation } from '@deepseek-ai/dsh-sandbox';
 import { z } from 'zod';
 import { createUpdateEngine } from './engine.js';
+import { createGithubResolver } from './github.js';
 import { TYPERT_REMOTE } from './typert.remote-client.js';
 
 /** The manager's view helper omits compatibility fields; retain its exact spawn policy. */
@@ -64,6 +65,9 @@ export class PluginEnhance extends TypertRemoteService {
       resolveNpmMetadata: createNpmResolver({
         profile: ctx.profileContext, manager: ctx.pluginManager,
         command: config.pnpmCommand, timeoutMs: config.lookupTimeoutMs, signal: lookup.signal,
+      }),
+      resolveGithubMetadata: createGithubResolver({
+        profile: ctx.profileContext, timeoutMs: config.lookupTimeoutMs, signal: lookup.signal,
       }),
       runtimeVersion: getDshRuntimeVersion(), selfName: 'dsh-plugin-enhance',
     });

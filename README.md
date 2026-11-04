@@ -14,12 +14,16 @@
 
 已在所配置市场中找到的包优先采用市场默认版本及其明确的安装目标；其他标准 npm 安装查询 `latest`。版本查询沿用 DSH 包管理器的子进程策略，在当前 profile 中执行 `pnpm view` 并额外读取兼容性字段，使用 profile 的 pnpm 启动器、registry、认证及代理设置。仅选择比当前版本更新、且与当前 DSH 兼容的目标。不使用兼容性豁免；市场读取失败不会静默改用 npm 来源。
 
+GitHub 来源支持 `github:owner/repo`、`owner/repo`、GitHub HTTPS 地址及 SSH Git 地址，可带 `#分支`、`#标签` 或 `#commit`。没有市场目标时，通过 Git 在临时 bare 仓库中读取对应 ref 的根目录 `package.json`；未指定 ref 时读取默认分支。查询使用 profile 目录、安装器环境及本机 Git 的代理和认证配置，不执行仓库代码或构建脚本，结束后清理临时仓库。查询受 `lookupTimeoutMs` 限制，服务卸载时取消。
+
+GitHub 更新仍以 `package.json` 的版本号为准：只有版本号更高、包名一致、声明 bundle 且兼容当前 DSH 时才可更新；相同版本的 commit 变化不视为更新。安装保留原来源的 ref，因此后续检查仍跟踪同一分支；固定标签和 commit 不会自动切到默认分支。检查到安装之间分支可能前进，实际安装版本与检查目标不符时会报告失败。暂不支持 `#semver:`、子目录及其他 pnpm Git ref 扩展。
+
 ## 更新失败与限制
 
 - 支持 HMR 时，更新先卸载旧包再安装指定版本。这个过程不是原子操作；安装失败可能留下未安装的组合包。页面保留恢复目标，可解决原因后点击「重试失败项」。
 - 无 HMR 且管理器以 `stop-profile` 拒绝卸载时，按官方管理器支持的方式直接覆盖安装，并报告是否需要重启。其他卸载失败不会继续安装。
 - 待授权构建脚本、安装失败、激活失败及实际版本不符均不会报告为更新成功。脚本必须通过官方插件管理器另行明确授权；本插件不会自动授权脚本、授予版本豁免或重启 DSH。
-- 排除更新器自身、安装随附的内置包、不可移除包、本地路径及无市场目标的 Git/URL/npm alias 来源。市场明确提供的新 Git 目标可以使用。
+- 排除更新器自身、安装随附的内置包、不可移除包、本地路径，以及无市场目标的非 GitHub Git、压缩包 URL 和 npm alias 来源。市场明确提供的新 Git 目标可以使用。
 - 恢复队列只保存在当前进程内存中。重启会丢失队列；可使用官方管理器按原包名安装所需版本。没有自动回滚或跨进程恢复承诺。
 - 更新前会重新读取包清单，拒绝已变化的来源、版本或启用状态；这不是对其他管理入口的事务锁。执行更新期间请避免同时从其他入口管理同一包。
 
@@ -37,7 +41,7 @@ npm pack --dry-run
 
 Host 使用 ESM JavaScript；`build` 用 esbuild 将客户端源码与 Remote 描述打包为浏览器入口，再检查所有发布入口的语法。React 与 Zod 由 DSH 客户端提供。测试覆盖纯引擎、真实 Cordis/Typert 网关、客户端 Remote 挂载与释放以及界面交互，全部使用假包管理器，不真实安装或卸载插件。完整测试需要清单中的 DSH peer 与开发依赖可解析。
 
-源码入口：[`engine.js`](engine.js) 负责发现与更新队列，[`index.js`](index.js) 提供 Host 服务、npm 适配和工具，[`client.source.js`](client.source.js) 挂载本插件的 Remote 描述后，通过子作用域显式注入 `remote.pluginEnhance` 再注册更新标签页，生成的 [`client.js`](client.js) 随仓库发布，安装时无需构建。Remote 描述分别由 [`typert.host.js`](typert.host.js) 和 [`typert.remote-client.js`](typert.remote-client.js) 提供。
+源码入口：[`engine.js`](engine.js) 负责发现与更新队列，[`index.js`](index.js) 提供 Host 服务、npm 适配和工具，[`github.js`](github.js) 负责 GitHub 来源识别与元数据查询，[`client.source.js`](client.source.js) 挂载本插件的 Remote 描述后，通过子作用域显式注入 `remote.pluginEnhance` 再注册更新标签页，生成的 [`client.js`](client.js) 随仓库发布，安装时无需构建。Remote 描述分别由 [`typert.host.js`](typert.host.js) 和 [`typert.remote-client.js`](typert.remote-client.js) 提供。
 
 ## 打包与后续安装
 
