@@ -4,7 +4,7 @@
 
 ## 环境与改动范围
 
-- 目标运行版本为 **DSH 0.2.1-rc.5**；使用 Node.js 22 或更新版本。调整 DSH API 或依赖时，以 [package.json](package.json) 的目标版本为准。
+- 使用 Node.js 22 或更新版本。DSH 开发与测试基准为 **0.2.1-rc.5**，运行兼容范围为 `>=0.2.1-rc.5 <0.3.0-0`，以 [package.json](package.json) 为准。`engines.dsh` 与 DSH peerDependencies 保持一致的范围；不要将测试基准误写成精确的运行版本限制。扩大范围前核对所用 API；范围声明不代表已经在所有后续版本上测试。
 - 本仓库独立管理 Git、依赖、构建和发布，不在父仓库或其他插件中默认执行对应操作。
 - Host 使用 ESM JavaScript。React 与 Zod 由 DSH 客户端提供，不打入客户端 bundle。
 - 界面包含英文和简体中文；新增或调整用户文案时保持两种语言一致。
