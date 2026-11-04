@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-enhance",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Check and selectively update installed DSH plugin bundles",
   "type": "module",
   "license": "MIT",

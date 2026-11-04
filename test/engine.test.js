@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createUpdateEngine } from '../engine.js';
+import { createUpdateEngine, createUpdateState } from '../engine.js';
 
 const bundle = (name, extra = {}) => ({
   name, version: '1.0.0', source: `${name}@^1.0.0`, enabled: true,
@@ -153,16 +153,16 @@ test('market uses compatible default instead of newest and passes registry uncha
   assert.equal(f.calls[1][2].registry, 'https://private.example');
 });
 
-test('exclude self, builtins, local, nonremovable, git and npm alias sources', async () => {
+test('exclude builtins, local, nonremovable, git and npm alias sources', async () => {
   const f = fixture([
-    bundle('updater'), bundle('builtin', { availability: 'installation' }),
+    bundle('builtin', { availability: 'installation' }),
     bundle('local', { source: 'link:/tmp/local' }), bundle('locked', { removable: false }),
     bundle('git', { source: 'git+https://example.org/repo.git' }),
     bundle('alias', { source: 'alias@npm:other@1.0.0' }),
   ]);
   const check = await f.engine.check();
   assert.deepEqual(check.items.map(item => item.reason), [
-    'self', 'builtin', 'local-or-unknown-source', 'not-removable', 'unsupported-source', 'unsupported-source',
+    'builtin', 'local-or-unknown-source', 'not-removable', 'unsupported-source', 'unsupported-source',
   ]);
   assert.equal(f.calls.length, 0);
 });
@@ -315,4 +315,122 @@ test('busy guard covers check and update; status exposes in-progress work', asyn
   const result = await running;
   assert.equal(result.busy, false);
   assert.equal(result.run.completed, 2);
+});
+
+
+test('self is ready and runs last, preserving other selections in batches and retries', async () => {
+  for (const explicitRetry of [false, true]) {
+    const f = fixture([bundle('updater'), bundle('alpha'), bundle('beta')]);
+    const check = await f.engine.check();
+    assert.equal(check.items[0].state, 'ready');
+    assert.equal(check.items[0].reason, null);
+    assert.equal(check.items[0].target.spec, 'updater@2.0.0');
+    const install = f.manager.installBundle;
+    f.manager.installBundle = async spec => {
+      f.calls.push(['failed-install', spec]);
+      return outcome({ application: 'failed' });
+    };
+    const result = await f.engine.start({ generation: check.generation, names: ['updater', 'beta', 'alpha'] });
+    assert.deepEqual(result.run.names, ['beta', 'alpha', 'updater']);
+    assert.deepEqual(f.calls.filter(call => call[0] === 'remove').map(call => call[1]), ['beta', 'alpha', 'updater']);
+    assert.ok(result.items.every(item => item.retryable));
+    f.calls.length = 0;
+    f.manager.installBundle = install;
+    const retry = await f.engine.retry(explicitRetry ? { names: ['updater', 'beta', 'alpha'] } : undefined);
+    const expected = explicitRetry ? ['beta', 'alpha', 'updater'] : ['alpha', 'beta', 'updater'];
+    assert.deepEqual(retry.run.names, expected);
+    assert.deepEqual(f.calls.map(call => call[1]), expected.map(name => `${name}@2.0.0`));
+    assert.ok(retry.items.every(item => item.state === 'succeeded'));
+  }
+});
+
+test('shared state survives module reload during self removal and uses fresh dependencies afterward', async t => {
+  const reloaded = await import('../engine.js?self-update-reload');
+  for (const [label, failure, expectedState, expectedReason] of [
+    ['success', {}, 'succeeded', null],
+    ['failed install', { application: 'failed', error: { code: 'activation-failed' } }, 'failed', 'activation-failed'],
+    ['pending build', { pendingBuilds: ['native'] }, 'pending-builds', 'applied'],
+    ['wrong version', { version: '1.9.0' }, 'failed', 'installed-target-mismatch'],
+  ]) {
+    await t.test(label, async () => {
+      const state = createUpdateState();
+      const f = fixture([bundle('updater', { enabled: false })], { state });
+      const check = await f.engine.check();
+      assert.equal(Object.hasOwn(check, 'plans'), false);
+      let releaseRemoval;
+      const gate = new Promise(resolve => { releaseRemoval = resolve; });
+      let removed;
+      const removalStarted = new Promise(resolve => { removed = resolve; });
+      const remove = f.manager.removeBundle;
+      f.manager.removeBundle = async name => {
+        const result = await remove(name);
+        removed();
+        await gate;
+        return result;
+      };
+      const install = f.manager.installBundle;
+      f.manager.installBundle = async (...args) => ({ ...await install(...args), ...failure });
+      const running = f.engine.start({ generation: check.generation, names: ['updater'] });
+      await removalStarted;
+      const freshCalls = [];
+      const fresh = reloaded.createUpdateEngine({
+        state, selfName: 'updater', runtimeVersion: '0.2.1-rc.5',
+        manager: {
+          listBundles: () => f.manager.listBundles(),
+          removeBundle: async name => { freshCalls.push(['remove', name]); return remove(name); },
+          installBundle: async (...args) => { freshCalls.push(['install', args[0]]); return install(...args); },
+        },
+        resolveNpmMetadata: async ({ name }) => {
+          freshCalls.push(['resolve', name]);
+          return { manifest: { ...manifest(name), version: '3.0.0' } };
+        },
+      });
+      try {
+        const during = fresh.status();
+        assert.equal(during.busy, true);
+        assert.equal(during.generation, check.generation);
+        assert.equal(during.checkedAt, check.checkedAt);
+        assert.deepEqual(during.run, { names: ['updater'], active: 'updater', completed: 0 });
+        assert.equal(during.items[0].state, 'removing');
+        assert.throws(() => fresh.start({ generation: check.generation, names: ['updater'] }), /engine-busy/);
+        assert.throws(() => fresh.retry(), /engine-busy/);
+        await assert.rejects(fresh.check(), /engine-busy/);
+        assert.deepEqual(freshCalls, []);
+      } finally {
+        releaseRemoval();
+      }
+      const result = await running;
+      assert.deepEqual(fresh.status(), result);
+      assert.equal(result.busy, false);
+      assert.equal(result.run.completed, 1);
+      assert.equal(result.run.active, null);
+      assert.equal(result.items[0].state, expectedState);
+      assert.equal(result.items[0].reason, expectedReason);
+      assert.equal(f.calls[1][2].enabled, false);
+      if (expectedState !== 'succeeded') {
+        assert.equal(result.items[0].retryable, true);
+        // A fresh check preserves the failed plan, including the original 2.0.0 target.
+        assert.equal((await fresh.check()).items[0].target.version, '2.0.0');
+        const retried = await fresh.retry();
+        assert.equal(retried.items[0].state, 'succeeded');
+        assert.deepEqual(freshCalls, [['remove', 'updater'], ['install', 'updater@2.0.0']]);
+      }
+      const checked = await fresh.check();
+      assert.equal(checked.items[0].target.version, '3.0.0');
+      assert.deepEqual(freshCalls.at(-1), ['resolve', 'updater']);
+      assert.equal(Object.hasOwn(fresh.status(), 'plans'), false);
+    });
+  }
+});
+
+test('default engine state and explicitly created state are independent', async () => {
+  const first = fixture();
+  const second = fixture();
+  await first.engine.check();
+  assert.equal(second.engine.status().generation, 0);
+  assert.deepEqual(second.engine.status().items, []);
+  const a = createUpdateState();
+  const b = createUpdateState();
+  a.plans.set('alpha', {});
+  assert.equal(b.plans.size, 0);
 });

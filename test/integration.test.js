@@ -90,6 +90,54 @@ test('real launcher subprocess requests compatibility fields without invoking pn
   assert.equal(registry, 'https://registry.npmjs.org/');
 });
 
+test('self-update survives real Cordis disposal and a replacement service resumes shared state', async () => {
+  const ctx = new Context();
+  providers(ctx);
+  let bundles = [{ name: 'dsh-plugin-enhance', version: '1.0.0', source: 'dsh-plugin-enhance@1.0.0', enabled: true, installed: true, availability: 'profile', removable: true }];
+  const profile = ctx.profileContext;
+  profile.dir = tmpdir();
+  profile.packageManager = {
+    command: process.execPath,
+    args: ['--input-type=module', '-e', 'console.log(JSON.stringify({name:"dsh-plugin-enhance",version:"2.0.0",dsh:{bundle:{}},engines:{dsh:">=0.2.1-rc.5"}}))', '--'],
+  };
+  const manager = ctx.pluginManager;
+  manager.listBundles = async () => structuredClone(bundles);
+  let host = ctx.plugin(PluginEnhance, {});
+  let replacement;
+  manager.removeBundle = async () => {
+    await host.dispose();
+    assert.equal(ctx.get('pluginEnhance'), undefined);
+    bundles = [];
+    return { application: 'applied' };
+  };
+  manager.installBundle = async (spec, options) => {
+    bundles = [{ name: 'dsh-plugin-enhance', version: '2.0.0', source: spec, enabled: options.enabled, installed: true, availability: 'profile', removable: true }];
+    host = ctx.plugin(PluginEnhance, {});
+    await settle();
+    replacement = ctx.pluginEnhance;
+    assert.equal(replacement.status().busy, true);
+    assert.equal(replacement.status().run.active, 'dsh-plugin-enhance');
+    await assert.rejects(replacement.check(), /engine-busy/);
+    return { application: 'applied', bundle: 'dsh-plugin-enhance', version: '2.0.0' };
+  };
+  await settle();
+  try {
+    const original = ctx.pluginEnhance;
+    const checked = await original.check();
+    assert.equal(checked.items[0].state, 'ready');
+    const result = await original.start({ generation: checked.generation, names: ['dsh-plugin-enhance'] });
+    assert.notEqual(replacement, original);
+    assert.notEqual(replacement.engine, original.engine, 'replacement uses its own engine implementation');
+    assert.deepEqual(replacement.status(), result);
+    assert.equal(result.items[0].state, 'succeeded');
+    assert.equal(result.busy, false);
+    // Its lookup controller must be fresh, not the controller aborted on unload.
+    assert.equal((await replacement.check()).items[0].state, 'current');
+  } finally {
+    await host.dispose();
+  }
+});
+
 test('agent tool shares UI service and denies mutations in restricted mode without approval', async () => {
   let definition;
   let starts = 0;

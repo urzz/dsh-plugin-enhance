@@ -43,7 +43,9 @@ GitHub 地址支持 `github:owner/repo`、`owner/repo`、GitHub HTTPS 和 SSH Gi
 
 GitHub 更新以 `package.json` 的版本号为准，同时要求包名一致、声明 bundle 且兼容当前 DSH。**相同版本下的 commit 变化不会触发更新。** 更新保留原 ref，继续跟踪同一分支；固定标签或 commit 不会自动切换到默认分支。暂不支持 `#semver:`、子目录及其他 pnpm Git ref 扩展。
 
-更新器自身、随安装附带的内置包、不可移除包、本地路径，以及无市场目标的非 GitHub Git、压缩包 URL 和 npm alias 来源不参与更新。市场明确提供的 Git 安装目标可以使用。
+支持更新本插件自身，使用相同的来源和兼容性规则，并排在本批其他项目之后执行。重载期间更新标签页可能短暂消失；新实例会继续显示当前进程中的队列状态。若自身安装或激活失败导致标签页未恢复，可运行 `dsh plugin --profile web add dsh-plugin-enhance@latest` 重新安装（其他 profile 请替换 `web`）。
+
+随安装附带的内置包、不可移除包、本地路径，以及无市场目标的非 GitHub Git、压缩包 URL 和 npm alias 来源不参与更新。市场明确提供的 Git 安装目标可以使用。
 
 ## 更新失败与注意事项
 

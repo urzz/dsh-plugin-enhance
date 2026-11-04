@@ -7,7 +7,7 @@ import { getDshRuntimeVersion } from '@deepseek-ai/dsh-app-boot';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import { approveEscalation } from '@deepseek-ai/dsh-sandbox';
 import { z } from 'zod';
-import { createUpdateEngine } from './engine.js';
+import { createUpdateEngine, createUpdateState } from './engine.js';
 import { createGithubResolver } from './github.js';
 import { TYPERT_REMOTE } from './typert.remote-client.js';
 
@@ -49,6 +49,9 @@ export function createNpmResolver({ profile, manager, command = 'pnpm', timeoutM
 }
 
 const initializers = [];
+// The official manager outlives this bundle's unload/reload. Retain only data,
+// so a replacement service uses its new implementation and lookup controllers.
+const UPDATE_STATE = Symbol.for('dsh-plugin-enhance.update-state');
 export class PluginEnhance extends TypertRemoteService {
   static inject = ['pluginManager', 'pluginMarket', 'profileContext'];
   static Config = z.object({
@@ -70,6 +73,7 @@ export class PluginEnhance extends TypertRemoteService {
         profile: ctx.profileContext, timeoutMs: config.lookupTimeoutMs, signal: lookup.signal,
       }),
       runtimeVersion: getDshRuntimeVersion(), selfName: 'dsh-plugin-enhance',
+      state: ctx.pluginManager[UPDATE_STATE] ??= createUpdateState(),
     });
   }
   check() { return this.engine.check(); }

@@ -20,6 +20,14 @@ const successful = result => !result.error && !result.pendingBuilds?.length
   && ['applied', 'restart-required'].includes(result.application)
   && (!result.packageResult || (result.packageResult.exitCode === 0 && !result.packageResult.timedOut));
 
+/** Pure data retained across service reloads; dependencies belong to each engine. */
+export function createUpdateState() {
+  return {
+    busy: false, generation: 0, checkedAt: null, items: [], marketErrors: [],
+    run: null, plans: new Map(),
+  };
+}
+
 /**
  * Pure, profile-independent update coordinator. Dependencies are current DSH services.
  * resolveNpmMetadata({name, source, runtimeVersion}) returns {manifest, registry?}.
@@ -34,27 +42,26 @@ const successful = result => !result.error && !result.pendingBuilds?.length
  * Poll status while either runs. Concurrent mutations reject with engine-busy.
  * Recovery is in-memory: callers needing restart persistence must store snapshots.
  */
-export function createUpdateEngine({ manager, market, resolveNpmMetadata, resolveGithubMetadata, runtimeVersion, selfName }) {
-  let busy = false;
-  let generation = 0;
-  let checkedAt = null;
-  let items = [];
-  let marketErrors = [];
-  let run = null;
-  const plans = new Map();
-  const snapshot = () => copy({ generation, checkedAt, busy, items, marketErrors, run });
-  const assertIdle = () => { if (busy) throw new Error('engine-busy'); };
+export function createUpdateEngine({
+  manager, market, resolveNpmMetadata, resolveGithubMetadata, runtimeVersion, selfName,
+  state = createUpdateState(),
+}) {
+  const snapshot = () => copy({
+    generation: state.generation, checkedAt: state.checkedAt, busy: state.busy,
+    items: state.items, marketErrors: state.marketErrors, run: state.run,
+  });
+  const assertIdle = () => { if (state.busy) throw new Error('engine-busy'); };
 
   async function locked(operation) {
     assertIdle();
-    busy = true;
-    try { await operation(); } finally { busy = false; }
+    state.busy = true;
+    try { await operation(); } finally { state.busy = false; }
     return snapshot();
   }
 
   async function readMarkets() {
     const entries = new Map();
-    marketErrors = [];
+    state.marketErrors = [];
     if (!market) return entries;
     for (const { url } of await market.listIndexes()) {
       try {
@@ -73,7 +80,7 @@ export function createUpdateEngine({ manager, market, resolveNpmMetadata, resolv
           offset = page.nextOffset;
         } while (offset !== null);
       } catch (error) {
-        marketErrors.push({ url, message: error.message });
+        state.marketErrors.push({ url, message: error.message });
       }
     }
     return entries;
@@ -83,21 +90,20 @@ export function createUpdateEngine({ manager, market, resolveNpmMetadata, resolv
     return locked(async () => {
       const bundles = await manager.listBundles();
       const markets = await readMarkets();
-      const previous = new Map(items.filter(item => item.retryable).map(item => [item.name, item]));
-      items = [];
+      const previous = new Map(state.items.filter(item => item.retryable).map(item => [item.name, item]));
+      state.items = [];
       for (const bundle of bundles) {
         if (previous.has(bundle.name)) {
-          items.push(previous.get(bundle.name));
+          state.items.push(previous.get(bundle.name));
           previous.delete(bundle.name);
           continue;
         }
-        plans.delete(bundle.name);
+        state.plans.delete(bundle.name);
         const item = {
           name: bundle.name, currentVersion: bundle.version ?? null, enabled: bundle.enabled,
           source: bundle.source ?? null, state: 'blocked', reason: null, target: null, retryable: false,
         };
-        items.push(item);
-        if (bundle.name === selfName) { item.reason = 'self'; continue; }
+        state.items.push(item);
         if (bundle.availability === 'installation') { item.reason = 'builtin'; continue; }
         if (!bundle.installed) { item.reason = 'not-installed'; continue; }
         if (!bundle.removable) { item.reason = 'not-removable'; continue; }
@@ -113,7 +119,7 @@ export function createUpdateEngine({ manager, market, resolveNpmMetadata, resolv
             }
             target = { ...release.install, version: release.version, origin: 'market' };
           } else if (parseGithubSource(bundle.source)) {
-            if (marketErrors.length) { item.reason = 'market-unavailable'; continue; }
+            if (state.marketErrors.length) { item.reason = 'market-unavailable'; continue; }
             const { manifest, spec } = await resolveGithubMetadata({
               name: bundle.name, source: bundle.source, runtimeVersion,
             });
@@ -130,7 +136,7 @@ export function createUpdateEngine({ manager, market, resolveNpmMetadata, resolv
               item.reason = 'unsupported-source'; continue;
             }
             // A failed index may own this package; do not silently switch source.
-            if (marketErrors.length) { item.reason = 'market-unavailable'; continue; }
+            if (state.marketErrors.length) { item.reason = 'market-unavailable'; continue; }
             const { manifest, registry } = await resolveNpmMetadata({
               name: bundle.name, source: bundle.source, runtimeVersion,
             });
@@ -146,21 +152,21 @@ export function createUpdateEngine({ manager, market, resolveNpmMetadata, resolv
           if (!semver.gt(target.version, bundle.version)) { item.state = 'current'; continue; }
           item.target = target;
           item.state = 'ready';
-          plans.set(bundle.name, { expected: identity(bundle), enabled: bundle.enabled, target, removed: false });
+          state.plans.set(bundle.name, { expected: identity(bundle), enabled: bundle.enabled, target, removed: false });
         } catch (error) {
           item.state = 'check-failed';
           item.reason = error.message;
         }
       }
       // Failed installations can disappear from listBundles; keep their recovery plans.
-      items.push(...previous.values());
-      generation++;
-      checkedAt = Date.now();
+      state.items.push(...previous.values());
+      state.generation++;
+      state.checkedAt = Date.now();
     });
   }
 
   async function update(item) {
-    const plan = plans.get(item.name);
+    const plan = state.plans.get(item.name);
     const current = (await manager.listBundles()).find(bundle => bundle.name === item.name);
     if (identity(current) !== plan.expected) {
       item.state = 'stale'; item.reason = 'bundle-changed'; item.retryable = false;
@@ -226,23 +232,25 @@ export function createUpdateEngine({ manager, market, resolveNpmMetadata, resolv
       throw new Error('select-distinct-packages');
     }
     return names.map(name => {
-      const item = items.find(candidate => candidate.name === name);
+      const item = state.items.find(candidate => candidate.name === name);
       if (!item || !predicate(item)) throw new Error(`package-not-selectable: ${name}`);
       return item;
     });
   }
 
   async function batch(selected) {
+    // Stable ordering keeps the caller's queue order, with this bundle last.
+    selected.sort((a, b) => Number(a.name === selfName) - Number(b.name === selfName));
     return locked(async () => {
-      run = { names: selected.map(item => item.name), completed: 0, active: null };
+      state.run = { names: selected.map(item => item.name), completed: 0, active: null };
       try {
         for (const item of selected) {
-          run.active = item.name;
+          state.run.active = item.name;
           await update(item);
-          run.completed++;
+          state.run.completed++;
         }
       } finally {
-        run.active = null;
+        state.run.active = null;
       }
     });
   }
@@ -253,10 +261,10 @@ export function createUpdateEngine({ manager, market, resolveNpmMetadata, resolv
     check,
     start({ generation: expectedGeneration, names }) {
       assertIdle();
-      if (expectedGeneration !== generation || checkedAt === null) throw new Error('stale-check');
+      if (expectedGeneration !== state.generation || state.checkedAt === null) throw new Error('stale-check');
       return batch(select(names, item => item.state === 'ready'));
     },
-    retry({ names = items.filter(item => item.retryable).map(item => item.name) } = {}) {
+    retry({ names = state.items.filter(item => item.retryable).map(item => item.name) } = {}) {
       assertIdle();
       return batch(select(names, item => item.retryable));
     },
