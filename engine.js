@@ -89,7 +89,16 @@ export function createUpdateEngine({
   async function check() {
     return locked(async () => {
       const bundles = await manager.listBundles();
-      const previous = new Map(state.items.filter(item => item.retryable).map(item => [item.name, item]));
+      const installed = new Map(bundles.map(bundle => [bundle.name, bundle]));
+      const previous = new Map();
+      for (const item of state.items.filter(item => item.retryable)) {
+        // Keep recovery only while the manager still matches the failed attempt.
+        if (identity(installed.get(item.name)) === state.plans.get(item.name).expected) {
+          previous.set(item.name, item);
+        } else {
+          state.plans.delete(item.name);
+        }
+      }
       const unchecked = [];
       state.items = [];
       for (const bundle of bundles) {

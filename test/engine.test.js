@@ -336,6 +336,45 @@ test('failed installation remains recoverable across check and retries without r
   assert.deepEqual(f.calls.map(call => call[0]), ['remove', 'install']);
 });
 
+test('check replaces obsolete GitHub failures after a manual npm installation', async () => {
+  for (const phase of ['remove', 'install']) {
+    for (const version of ['1.5.0', '2.0.0']) {
+      const f = fixture([bundle('alpha', { source: 'github:owner/alpha#main', enabled: false })], {
+        resolveGithubMetadata: async () => ({ manifest: manifest('alpha'), spec: 'github:owner/alpha#main' }),
+      });
+      const operation = `${phase}Bundle`;
+      const original = f.manager[operation];
+      f.manager[operation] = async () => outcome({ application: 'failed', error: { code: 'operation-error' } });
+      const check = await f.engine.check();
+      const failed = await f.engine.start({ generation: check.generation, names: ['alpha'] });
+      assert.equal(failed.items[0].retryable, true);
+      f.manager[operation] = original;
+      f.change([bundle('alpha', { version, source: `alpha@^${version}` })]);
+
+      const refreshed = await f.engine.check();
+      assert.equal(refreshed.items.length, 1);
+      const [item] = refreshed.items;
+      assert.equal(item.currentVersion, version);
+      assert.equal(item.source, `alpha@^${version}`);
+      assert.equal(item.enabled, true);
+      assert.equal(item.reason, null);
+      assert.equal(item.retryable, false);
+      assert.equal(item.recovery, undefined);
+      assert.equal(item.result, undefined);
+      assert.throws(() => f.engine.retry({ names: ['alpha'] }), /package-not-selectable/);
+      if (version === '2.0.0') {
+        assert.equal(item.state, 'current');
+      } else {
+        assert.equal(item.state, 'ready');
+        assert.equal(item.target.origin, 'npm');
+        const result = await f.engine.start({ generation: refreshed.generation, names: ['alpha'] });
+        assert.equal(result.items[0].state, 'succeeded');
+        assert.deepEqual(f.calls.at(-1), ['install', 'alpha@2.0.0', { enabled: true, saveExact: true }]);
+      }
+    }
+  }
+});
+
 test('deferred checks retain retryable rows and plans for present and missing bundles', async () => {
   const m = market([]);
   const f = fixture([bundle('alpha'), bundle('beta')], { market: m });
