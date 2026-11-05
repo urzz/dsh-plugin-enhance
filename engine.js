@@ -89,8 +89,8 @@ export function createUpdateEngine({
   async function check() {
     return locked(async () => {
       const bundles = await manager.listBundles();
-      const markets = await readMarkets();
       const previous = new Map(state.items.filter(item => item.retryable).map(item => [item.name, item]));
+      const unchecked = [];
       state.items = [];
       for (const bundle of bundles) {
         if (previous.has(bundle.name)) {
@@ -109,6 +109,14 @@ export function createUpdateEngine({
         if (!bundle.removable) { item.reason = 'not-removable'; continue; }
         if (!bundle.source || localSource(bundle.source)) { item.reason = 'local-or-unknown-source'; continue; }
         if (!semver.valid(bundle.version)) { item.reason = 'invalid-current-version'; continue; }
+        item.state = 'checking';
+        unchecked.push({ bundle, item });
+      }
+      // Publish the full inventory before market or package metadata queries.
+      // Failed installations can disappear from listBundles; keep their recovery plans.
+      state.items.push(...previous.values());
+      const markets = await readMarkets();
+      for (const { bundle, item } of unchecked) {
         try {
           let target;
           const entry = markets.get(bundle.name);
@@ -156,10 +164,10 @@ export function createUpdateEngine({
         } catch (error) {
           item.state = 'check-failed';
           item.reason = error.message;
+        } finally {
+          if (item.state === 'checking') item.state = 'blocked';
         }
       }
-      // Failed installations can disappear from listBundles; keep their recovery plans.
-      state.items.push(...previous.values());
       state.generation++;
       state.checkedAt = Date.now();
     });

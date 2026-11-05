@@ -40,7 +40,7 @@ test('update tab registers localized UI, selects only ready bundles and forwards
       await mountReady;
       remote.pluginEnhance = {
         status: async () => ({ ok: true, value: initial }),
-        start: async input => { calls.push(input); return { ok: true, value: { ...initial, items: initial.items.map(item => ({ ...item, state: 'succeeded' })) } }; },
+        start: async input => { calls.push(input); return { ok: true, value: input.names.length === 1 ? initial : { ...initial, items: initial.items.map(item => ({ ...item, state: 'succeeded' })) } }; },
       };
       return () => { delete remote.pluginEnhance; unmounted = true; };
     },
@@ -68,17 +68,16 @@ test('update tab registers localized UI, selects only ready bundles and forwards
   await new Promise(resolve => setImmediate(resolve));
   let nodes = flatten(render());
   const button = text => nodes.find(node => node.type === 'button' && node.children.includes(text));
-  const filter = () => nodes.find(node => node.type === 'label' && node.children.includes('Only show available updates')).children[0];
+  const filter = label => nodes.find(node => node.type === 'button' && node.children.some(child => typeof child === 'string' && child.startsWith(label + ' (')));
+  const search = () => nodes.find(node => node.type === 'input' && node.props.type === 'search');
   const headings = () => nodes.filter(node => node.type === 'h3').map(node => node.children[0]);
   assert.equal(button('Update selected').props.disabled, true);
-  assert.equal(filter().props.checked, true);
-  assert.deepEqual(headings(), ['Update available (5)']);
-  const rowNames = tree => flatten(tree).filter(node => node.type === 'input' && node.props['aria-label']).map(node => node.props['aria-label']);
-  assert.deepEqual(rowNames(render()), ['Alpha', 'available', 'plugin-2', 'plugin-10', 'zeta']);
-  assert.deepEqual(initial.items.slice(0, 5).map(item => item.name), ['plugin-10', 'zeta', 'plugin-2', 'available', 'Alpha']);
-  assert.equal(nodes.some(node => node.props['aria-label'] === 'protected'), false);
-  filter().props.onChange({ target: { checked: false } });
+  await button('Update').props.onClick();
+  assert.deepEqual(JSON.parse(JSON.stringify(calls.shift())), { generation: 7, names: ['Alpha'] });
   nodes = flatten(render());
+  assert.equal(filter('All plugins').props['aria-pressed'], true);
+  const rowNames = tree => flatten(tree).filter(node => node.type === 'input' && node.props.type === 'checkbox' && node.props['aria-label'] !== 'Select visible updates').map(node => node.props['aria-label']);
+  assert.deepEqual(initial.items.slice(0, 5).map(item => item.name), ['plugin-10', 'zeta', 'plugin-2', 'available', 'Alpha']);
   assert.deepEqual(headings(), ['Update available (5)', 'Updating (2)', 'Needs attention (4)', 'Updated (2)', 'Up to date (1)', 'Unavailable (1)']);
   assert.deepEqual(nodes.filter(node => node.type === 'table').map(rowNames), [
     ['Alpha', 'available', 'plugin-2', 'plugin-10', 'zeta'],
@@ -89,21 +88,33 @@ test('update tab registers localized UI, selects only ready bundles and forwards
     ['protected'],
   ]);
   assert.equal(nodes.find(node => node.props['aria-label'] === 'protected').props.disabled, true);
-  assert.equal(nodes.filter(node => node.type === 'input' && node.props['aria-label']).length, initial.items.length);
-  filter().props.onChange({ target: { checked: true } });
+  assert.equal(rowNames(render()).length, initial.items.length);
+  filter('Update available').props.onClick();
   nodes = flatten(render());
-  button('Select all available').props.onClick();
+  assert.deepEqual(rowNames(render()), ['Alpha', 'available', 'plugin-2', 'plugin-10', 'zeta']);
+  search().props.onChange({ target: { value: 'plugin-' } });
+  nodes = flatten(render());
+  assert.deepEqual(rowNames(render()), ['plugin-2', 'plugin-10']);
+  search().props.onChange({ target: { value: 'nothing-matches' } });
+  nodes = flatten(render());
+  assert.ok(nodes.some(node => node.children.includes(dictionaries.en.noMatch)));
+  button('Clear filters').props.onClick();
+  nodes = flatten(render());
+  assert.equal(rowNames(render()).length, initial.items.length);
+  nodes.find(node => node.type === 'input' && node.props['aria-label'] === 'Select visible updates').props.onChange({ target: { checked: true } });
   nodes = flatten(render());
   assert.equal(button('Update selected').props.disabled, false);
   await button('Update selected').props.onClick();
   assert.deepEqual(JSON.parse(JSON.stringify(calls)), [{ generation: 7, names: ['Alpha', 'available', 'plugin-2', 'plugin-10', 'zeta'] }]);
   nodes = flatten(render());
-  assert.equal(filter().props.checked, true);
-  assert.ok(nodes.some(node => node.props.role === 'status' && node.children.includes(dictionaries.en.noAvailable)));
-  filter().props.onChange({ target: { checked: false } });
+  assert.equal(filter('All plugins').props['aria-pressed'], true);
+  filter('Update available').props.onClick();
+  nodes = flatten(render());
+  assert.ok(nodes.some(node => node.children.includes(dictionaries.en.noAvailable)));
+  button('Clear filters').props.onClick();
   nodes = flatten(render());
   assert.deepEqual(headings(), [`Updated (${initial.items.length})`]);
-  assert.ok(nodes.some(node => node.type === 'td' && node.children.includes('Updated')));
+  assert.ok(nodes.some(node => node.type === 'span' && node.children.includes('Updated')));
   for (const cleanup of effects) cleanup?.();
   for (const cleanup of resources.reverse()) await cleanup?.();
   assert.equal(unmounted, true);
@@ -153,7 +164,7 @@ test('real Cordis and Client Remote allow the update tab to poll, check and unlo
     assert.equal(mounted, true);
     tree = Component();
     await new Promise(resolve => setImmediate(resolve));
-    assert.deepEqual(calls, [['/api', 'pluginEnhance/status']]);
+    assert.deepEqual(calls, [['/api', 'pluginEnhance/status'], ['/api', 'pluginEnhance/check']]);
     const flatten = node => typeof node !== 'object' ? [] : [node, ...node.children.flatMap(flatten)];
     await flatten(tree).find(node => node.type === 'button' && node.children.includes('Check for updates')).props.onClick();
     assert.deepEqual(calls.at(-1), ['/api', 'pluginEnhance/check']);

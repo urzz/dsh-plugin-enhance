@@ -67,6 +67,76 @@ test('npm check, selected serial update and original disabled state', async () =
   assert.equal(f.engine.status().items[0].state, 'succeeded');
 });
 
+test('status publishes the full inventory before deferred markets and metadata resolve', async () => {
+  const indexes = Promise.withResolvers();
+  const search = Promise.withResolvers();
+  const npm = Promise.withResolvers();
+  const github = Promise.withResolvers();
+  const enteredIndexes = Promise.withResolvers();
+  const enteredSearch = Promise.withResolvers();
+  const enteredNpm = Promise.withResolvers();
+  const enteredGithub = Promise.withResolvers();
+  const f = fixture([
+    bundle('alpha', { enabled: false }),
+    bundle('beta', { source: 'github:owner/beta#main' }),
+    bundle('builtin', { availability: 'installation' }),
+    bundle('missing', { installed: false }),
+    bundle('locked', { removable: false }),
+    bundle('local', { source: 'link:/tmp/local' }),
+    bundle('invalid', { version: 'broken' }),
+  ], {
+    market: {
+      listIndexes() { enteredIndexes.resolve(); return indexes.promise; },
+      search() { enteredSearch.resolve(); return search.promise; },
+    },
+    resolveNpmMetadata() { enteredNpm.resolve(); return npm.promise; },
+    resolveGithubMetadata() { enteredGithub.resolve(); return github.promise; },
+  });
+  const running = f.engine.check();
+  await enteredIndexes.promise;
+  const during = f.engine.status();
+  assert.equal(during.busy, true);
+  assert.equal(during.generation, 0);
+  assert.equal(during.checkedAt, null);
+  assert.deepEqual(during.items.map(({ name, state, reason }) => ({ name, state, reason })), [
+    { name: 'alpha', state: 'checking', reason: null },
+    { name: 'beta', state: 'checking', reason: null },
+    { name: 'builtin', state: 'blocked', reason: 'builtin' },
+    { name: 'missing', state: 'blocked', reason: 'not-installed' },
+    { name: 'locked', state: 'blocked', reason: 'not-removable' },
+    { name: 'local', state: 'blocked', reason: 'local-or-unknown-source' },
+    { name: 'invalid', state: 'blocked', reason: 'invalid-current-version' },
+  ]);
+  assert.deepEqual(during.items[0], {
+    name: 'alpha', currentVersion: '1.0.0', enabled: false, source: 'alpha@^1.0.0',
+    state: 'checking', reason: null, target: null, retryable: false,
+  });
+  during.items[0].state = 'tampered';
+  assert.equal(f.engine.status().items[0].state, 'checking');
+  assert.throws(() => f.engine.start({ generation: 0, names: ['alpha'] }), /engine-busy/);
+  assert.throws(() => f.engine.retry(), /engine-busy/);
+  await assert.rejects(f.engine.check(), /engine-busy/);
+
+  indexes.resolve([{ url: 'https://market.example/index.json' }]);
+  await enteredSearch.promise;
+  assert.equal(f.engine.status().items.length, 7);
+  assert.equal(f.engine.status().items[0].state, 'checking');
+  search.resolve({ fetchedAt: 1234, entries: [], nextOffset: null });
+  await enteredNpm.promise;
+  assert.deepEqual(f.engine.status().items.slice(0, 2).map(item => item.state), ['checking', 'checking']);
+  npm.resolve({ manifest: manifest('alpha') });
+  await enteredGithub.promise;
+  assert.deepEqual(f.engine.status().items.slice(0, 2).map(item => item.state), ['ready', 'checking']);
+  github.resolve({ manifest: manifest('beta'), spec: 'github:owner/beta#main' });
+  const result = await running;
+  assert.equal(result.busy, false);
+  assert.equal(result.generation, 1);
+  assert.equal(typeof result.checkedAt, 'number');
+  assert.deepEqual(result.items.slice(0, 2).map(item => item.state), ['ready', 'ready']);
+  assert.equal(result.items.length, 7);
+  assert.deepEqual(f.calls, []);
+});
+
 test('market refresh paginates with fetchedAt and permits Git targets', async () => {
   const requests = [];
   const m = market([]);
@@ -264,6 +334,41 @@ test('failed installation remains recoverable across check and retries without r
   result = await f.engine.retry();
   assert.equal(result.items[0].state, 'succeeded');
   assert.deepEqual(f.calls.map(call => call[0]), ['remove', 'install']);
+});
+
+test('deferred checks retain retryable rows and plans for present and missing bundles', async () => {
+  const m = market([]);
+  const f = fixture([bundle('alpha'), bundle('beta')], { market: m });
+  const remove = f.manager.removeBundle;
+  const install = f.manager.installBundle;
+  f.manager.removeBundle = name => name === 'alpha'
+    ? outcome({ application: 'failed', error: { code: 'bundle-in-use' } }) : remove(name);
+  f.manager.installBundle = async () => outcome({ application: 'failed' });
+  const check = await f.engine.check();
+  const failed = await f.engine.start({ generation: check.generation, names: ['alpha', 'beta'] });
+  assert.ok(failed.items.every(item => item.retryable));
+  f.change([bundle('alpha'), bundle('gamma')]);
+  const gate = Promise.withResolvers();
+  const entered = Promise.withResolvers();
+  m.listIndexes = () => { entered.resolve(); return gate.promise; };
+  const running = f.engine.check();
+  await entered.promise;
+  const during = f.engine.status();
+  assert.equal(during.busy, true);
+  assert.equal(during.generation, check.generation);
+  assert.deepEqual(during.items.map(item => item.name), ['alpha', 'gamma', 'beta']);
+  for (const item of failed.items) {
+    assert.deepEqual(during.items.find(row => row.name === item.name), item);
+  }
+  assert.equal(during.items[1].state, 'checking');
+  gate.resolve([]);
+  await running;
+  f.manager.removeBundle = remove;
+  f.manager.installBundle = install;
+  const retried = await f.engine.retry();
+  assert.deepEqual(retried.items.filter(item => ['alpha', 'beta'].includes(item.name))
+    .map(item => item.state), ['succeeded', 'succeeded']);
+  assert.equal(f.calls.filter(call => call[0] === 'remove' && call[1] === 'beta').length, 1);
 });
 
 test('pending scripts and activation failures never report success or grant approval', async () => {
