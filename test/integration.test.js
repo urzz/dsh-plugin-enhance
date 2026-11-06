@@ -1,16 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Context } from '@deepseek-ai/cordis';
-import { tmpdir } from 'node:os';
 import { remoteMethods } from '@deepseek-ai/dsh-typert-protocol';
 import { TypertGatewayService } from '@deepseek-ai/dsh-api-gateway';
-import { PluginEnhance, createNpmResolver, registerUpdateTool } from '../index.js';
+import { PluginEnhance, registerUpdateTool } from '../index.js';
 import { TYPERT } from '../typert.host.js';
 import { TYPERT_REMOTE } from '../typert.remote-client.js';
 
 const settle = () => new Promise(resolve => setImmediate(resolve));
 function providers(ctx) {
-  ctx.provide('pluginManager', { listBundles: async () => [], registries: async () => ({ registry: null, fallbackRegistries: [], resolved: null }) });
+  ctx.provide('pluginManager', { listBundles: async () => [] });
   ctx.provide('pluginMarket', { listIndexes: async () => [] });
   ctx.provide('profileContext', { dir: '/unused-profile' });
 }
@@ -38,6 +37,11 @@ test('real Cordis service mounts, exposes supported Remote markers, dispatches s
     await assert.rejects(invoke('retry', { selection: { names: [], approvedBuilds: ['unsafe'] } }), /boundary validation/i);
     await assert.rejects(invoke('status', {}, { ...owner, principal: { kind: 'external' } }), /access denied/i);
     assert.deepEqual(await TYPERT_REMOTE.methods['pluginEnhance/status'].invoke({ pluginEnhance: ctx.get('pluginEnhance') }, {}), checked);
+    const progress = { requestId: 'native-request', step: 'restoring' };
+    let forwarded;
+    ctx.pluginEnhance.engine.updateProgress = value => { forwarded = value; };
+    ctx.emit('plugin-manager/update-state', progress);
+    assert.equal(forwarded, progress);
   } finally {
     await gateway.dispose();
     await host.dispose();
@@ -45,80 +49,63 @@ test('real Cordis service mounts, exposes supported Remote markers, dispatches s
   assert.equal(ctx.get('pluginEnhance'), undefined);
 });
 
-test('npm metadata adapter preserves launcher invocation, profile cwd and private-registry isolation', async () => {
-  const calls = [];
-  const profile = { dir: '/profile-with-auth', packageManager: { command: '/app/node', args: ['/app/pnpm.cjs'], env: { APP_PROXY: 'proxy' } } };
-  const resolve = createNpmResolver({
-    profile,
-    manager: { registries: async () => ({ registry: null, fallbackRegistries: ['https://registry.npmjs.org/'], resolved: 'https://private.example/' }) },
-    view: async (...args) => { calls.push(args); return { exitCode: 0, timedOut: false, stdout: JSON.stringify({ name: '@private/example', version: '2.0.0', dsh: { bundle: {} } }), stderr: '' }; },
-  });
-  assert.equal((await resolve({ name: '@private/example' })).manifest.version, '2.0.0');
-  assert.equal(calls[0][0], profile.dir);
-  assert.equal(calls[0][1], '@private/example@latest');
-  assert.equal(calls[0][2].command, '/app/node');
-  assert.deepEqual(calls[0][2].args, ['/app/pnpm.cjs']);
-  assert.deepEqual(calls[0][2].env, profile.packageManager.env);
-  assert.equal(calls[0][2].registry, null);
-  calls.length = 0;
-  const failing = createNpmResolver({
-    profile,
-    manager: { registries: async () => ({ registry: null, fallbackRegistries: ['https://registry.npmjs.org/'], resolved: 'https://private.example/' }) },
-    view: async (...args) => { calls.push(args); return { exitCode: 1, timedOut: true, stdout: '', stderr: 'ETIMEDOUT' }; },
-  });
-  await assert.rejects(failing({ name: '@private/example' }), /timeout/);
-  assert.equal(calls.length, 1, 'private registry never falls back to public');
-});
+const bundle = (name, version = '1.0.0', enabled = false) => ({ name, version, source: `${name}@${version}`, enabled, installed: true, availability: 'profile', removable: true, updatable: true });
+const versions = { status: 'listed', installed: '1.0.0', registry: 'https://private.example/', attempts: [], versions: [{ version: '2.0.0', tags: ['latest'], prerelease: false, bundle: true }], omitted: 0 };
 
-test('real launcher subprocess requests compatibility fields without invoking pnpm or mutating profiles', async () => {
-  const resolve = createNpmResolver({
-    profile: {
-      dir: tmpdir(),
-      packageManager: {
-        command: process.execPath,
-        args: ['--input-type=module', '-e', 'console.log(JSON.stringify({name:"example",version:"2.0.0",engines:{dsh:"0.2.1-rc.5"},peerDependencies:{"@deepseek-ai/dsh":"0.2.1-rc.5"},argv:process.argv,cwd:process.cwd(),marker:process.env.ENHANCE_TEST_MARKER}))', '--'],
-        env: { ENHANCE_TEST_MARKER: 'launcher-env' },
-      },
-    },
-    manager: { registries: async () => ({ registry: 'https://registry.npmjs.org/', fallbackRegistries: [], resolved: 'https://registry.npmjs.org/' }) },
-  });
-  const { manifest, registry } = await resolve({ name: 'example' });
-  assert.equal(manifest.marker, 'launcher-env');
-  assert.equal(manifest.cwd, tmpdir());
-  assert.deepEqual(manifest.argv.slice(1), ['view', 'example@latest', 'name', 'version', 'dsh', 'engines', 'peerDependencies', '--json', '--registry=https://registry.npmjs.org/', '--config.fetch-retries=0']);
-  assert.equal(manifest.engines.dsh, '0.2.1-rc.5');
-  assert.equal(registry, 'https://registry.npmjs.org/');
+test('Host delegates registry checks and updates to the native manager', async () => {
+  const ctx = new Context();
+  providers(ctx);
+  const manager = ctx.pluginManager;
+  let installed = bundle('example');
+  const calls = [];
+  manager.listBundles = async () => [structuredClone(installed)];
+  manager.listVersions = async name => { calls.push(['list', name]); return versions; };
+  manager.updateBundle = async (name, version, options) => {
+    calls.push(['update', name, version, options]);
+    assert.equal(options.registry, versions.registry);
+    assert.equal(typeof options.requestId, 'string');
+    ctx.emit('plugin-manager/update-state', { requestId: options.requestId, step: 'installing' });
+    assert.equal(ctx.pluginEnhance.status().items[0].state, 'installing');
+    installed = bundle(name, version);
+    return { from: '1.0.0', to: version, step: 'install', result: { application: 'applied', bundle: name, version } };
+  };
+  const host = ctx.plugin(PluginEnhance, {});
+  await settle();
+  try {
+    const checked = await ctx.pluginEnhance.check();
+    assert.equal(checked.items[0].state, 'ready');
+    const result = await ctx.pluginEnhance.start({ generation: checked.generation, names: ['example'] });
+    assert.equal(result.items[0].state, 'succeeded');
+    assert.equal(installed.enabled, false);
+    assert.equal(calls[0][0], 'list');
+    assert.equal(calls.at(-1)[0], 'update');
+  } finally {
+    await host.dispose();
+  }
 });
 
 test('self-update survives real Cordis disposal and a replacement service resumes shared state', async () => {
   const ctx = new Context();
   providers(ctx);
-  let bundles = [{ name: 'dsh-plugin-enhance', version: '1.0.0', source: 'dsh-plugin-enhance@1.0.0', enabled: true, installed: true, availability: 'profile', removable: true }];
-  const profile = ctx.profileContext;
-  profile.dir = tmpdir();
-  profile.packageManager = {
-    command: process.execPath,
-    args: ['--input-type=module', '-e', 'console.log(JSON.stringify({name:"dsh-plugin-enhance",version:"2.0.0",dsh:{bundle:{}},engines:{dsh:">=0.2.1-rc.5"}}))', '--'],
-  };
+  let bundles = [bundle('dsh-plugin-enhance', '1.0.0', true)];
   const manager = ctx.pluginManager;
   manager.listBundles = async () => structuredClone(bundles);
+  manager.listVersions = async () => bundles[0].version === '1.0.0' ? versions : { ...versions, installed: '2.0.0', versions: [] };
   let host = ctx.plugin(PluginEnhance, {});
   let replacement;
-  manager.removeBundle = async () => {
+  manager.updateBundle = async (name, version, options) => {
     await host.dispose();
     assert.equal(ctx.get('pluginEnhance'), undefined);
-    bundles = [];
-    return { application: 'applied' };
-  };
-  manager.installBundle = async (spec, options) => {
-    bundles = [{ name: 'dsh-plugin-enhance', version: '2.0.0', source: spec, enabled: options.enabled, installed: true, availability: 'profile', removable: true }];
+    bundles = [bundle(name, version, true)];
     host = ctx.plugin(PluginEnhance, {});
     await settle();
     replacement = ctx.pluginEnhance;
     assert.equal(replacement.status().busy, true);
-    assert.equal(replacement.status().run.active, 'dsh-plugin-enhance');
+    assert.equal(replacement.status().run.active, name);
     await assert.rejects(replacement.check(), /engine-busy/);
-    return { application: 'applied', bundle: 'dsh-plugin-enhance', version: '2.0.0' };
+    ctx.emit('plugin-manager/update-state', { requestId: options.requestId, step: 'installing' });
+    assert.equal(replacement.status().items[0].state, 'installing');
+    return { from: '1.0.0', to: version, step: 'install', result: { application: 'applied', bundle: name, version } };
   };
   await settle();
   try {
@@ -131,7 +118,6 @@ test('self-update survives real Cordis disposal and a replacement service resume
     assert.deepEqual(replacement.status(), result);
     assert.equal(result.items[0].state, 'succeeded');
     assert.equal(result.busy, false);
-    // Its lookup controller must be fresh, not the controller aborted on unload.
     assert.equal((await replacement.check()).items[0].state, 'current');
   } finally {
     await host.dispose();

@@ -1,8 +1,4 @@
 import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol';
-import { execa } from 'execa';
-import { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess';
-import { registryPlan } from '@deepseek-ai/dsh-plugin-manager/registry';
-import { registryArguments } from '@deepseek-ai/dsh-plugin-manager/operations';
 import { getDshRuntimeVersion } from '@deepseek-ai/dsh-app-boot';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import { approveEscalation } from '@deepseek-ai/dsh-sandbox';
@@ -11,43 +7,6 @@ import { createUpdateEngine, createUpdateState } from './engine.js';
 import { createGithubResolver } from './github.js';
 import { TYPERT_REMOTE } from './typert.remote-client.js';
 
-/** The manager's view helper omits compatibility fields; retain its exact spawn policy. */
-export async function viewNpmMetadata(dir, spec, options) {
-  const result = await execa(options.command ?? 'pnpm', [
-    ...options.args ?? [], 'view', spec, 'name', 'version', 'dsh', 'engines', 'peerDependencies', '--json',
-    ...registryArguments(options.registry ?? null), '--config.fetch-retries=0',
-  ], {
-    cwd: dir, env: { ...scrubbedParentEnv(), ...options.env }, extendEnv: false,
-    reject: false, stdin: 'ignore', timeout: options.timeoutMs, maxBuffer: 1024 * 1024,
-    ...options.signal === undefined ? {} : { cancelSignal: options.signal },
-  });
-  return { exitCode: result.exitCode ?? null, stdout: result.stdout, stderr: result.stderr, timedOut: result.timedOut };
-}
-
-/** Uses the launcher's executable and profile npmrc, just like pluginManager. */
-export function createNpmResolver({ profile, manager, command = 'pnpm', timeoutMs = 20000, signal, view = viewNpmMetadata }) {
-  return async ({ name }) => {
-    const registries = registryPlan(undefined, await manager.registries());
-    for (let index = 0; index < registries.length; index++) {
-      signal?.throwIfAborted();
-      const registry = registries[index];
-      const result = await view(profile.dir, `${name}@latest`, {
-        ...(profile.packageManager ?? { command }), registry, timeoutMs, signal,
-      });
-      signal?.throwIfAborted();
-      if (result.exitCode === 0 && !result.timedOut) {
-        const manifest = JSON.parse(result.stdout);
-        if (!manifest || Array.isArray(manifest) || manifest.name !== name || typeof manifest.version !== 'string')
-          throw new Error('npm-metadata-invalid');
-        return { manifest, registry };
-      }
-      const unreachable = result.timedOut || /(?:ETIMEDOUT|ECONNRESET|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ERR_PNPM_META_FETCH_FAIL|ERR_PNPM_FETCH_5\d\d)/.test(result.stderr);
-      if (!unreachable || index === registries.length - 1)
-        throw new Error(result.timedOut ? 'npm-metadata-timeout' : 'npm-metadata-query-failed');
-    }
-  };
-}
-
 const initializers = [];
 // The official manager outlives this bundle's unload/reload. Retain only data,
 // so a replacement service uses its new implementation and lookup controllers.
@@ -55,7 +14,6 @@ const UPDATE_STATE = Symbol.for('dsh-plugin-enhance.update-state');
 export class PluginEnhance extends TypertRemoteService {
   static inject = ['pluginManager', 'pluginMarket', 'profileContext'];
   static Config = z.object({
-    pnpmCommand: z.string().default('pnpm'),
     lookupTimeoutMs: z.number().int().min(1000).default(20000),
   });
   constructor(ctx, config = {}) {
@@ -65,16 +23,13 @@ export class PluginEnhance extends TypertRemoteService {
     ctx.effect(() => () => lookup.abort(), 'plugin-enhance: cancel metadata lookup');
     this.engine = createUpdateEngine({
       manager: ctx.pluginManager, market: ctx.pluginMarket,
-      resolveNpmMetadata: createNpmResolver({
-        profile: ctx.profileContext, manager: ctx.pluginManager,
-        command: config.pnpmCommand, timeoutMs: config.lookupTimeoutMs, signal: lookup.signal,
-      }),
       resolveGithubMetadata: createGithubResolver({
         profile: ctx.profileContext, timeoutMs: config.lookupTimeoutMs, signal: lookup.signal,
       }),
       runtimeVersion: getDshRuntimeVersion(), selfName: 'dsh-plugin-enhance',
       state: ctx.pluginManager[UPDATE_STATE] ??= createUpdateState(),
     });
+    ctx.on('plugin-manager/update-state', progress => this.engine.updateProgress(progress));
   }
   check() { return this.engine.check(); }
   status() { return this.engine.status(); }
@@ -98,7 +53,7 @@ for (const name of ['check', 'start', 'status', 'retry']) {
 export function registerUpdateTool(ctx) {
   return ctx.tools.register(defineTool({
     name: 'plugin_enhance',
-    description: 'Check and selectively update installed plugin bundles in this profile. check returns a generation and candidates; start requires that generation and exact names. Updates remove then reinstall and can leave failed bundles uninstalled. Poll status while a batch runs; retry failed items after fixing the cause. All calls require danger-full-access or approval. Build scripts and version exemptions are never approved by this tool; use plugin_manager with explicit user authorization for those.',
+    description: 'Check and selectively update installed plugin bundles in this profile. check returns a generation and candidates; start requires that generation and exact names. Registry bundles use the native manager version listing and update API, which attempts to restore the previous version after target installation fails. Market and GitHub extensions remove then reinstall without automatic rollback; failed extensions can remain uninstalled. Poll status while a batch runs; retry failed items after fixing the cause. All calls require danger-full-access or approval. Build scripts and version exemptions are never approved by this tool; use plugin_manager with explicit user authorization for those.',
     parameters: {
       action: { type: 'string', enum: ['check', 'start', 'status', 'retry'], required: true, description: 'The shared UI business operation.' },
       generation: { type: 'integer', description: 'For start: generation from check.' },

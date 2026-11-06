@@ -1,4 +1,5 @@
 import semver from 'semver';
+import { randomUUID } from 'node:crypto';
 import { parseGithubSource } from './github.js';
 
 const copy = value => structuredClone(value);
@@ -16,7 +17,8 @@ function manifestCompatible(manifest, runtime) {
   });
 }
 const localSource = source => /^(?:file:|link:|workspace:|\/|~|\.{1,2}\/)/.test(source);
-const successful = result => !result.error && !result.pendingBuilds?.length
+const needsBuildApproval = result => result.pendingBuilds?.length > 0 || result.packageResult?.kind === 'build-blocked';
+const successful = result => !result.error && !needsBuildApproval(result)
   && ['applied', 'restart-required'].includes(result.application)
   && (!result.packageResult || (result.packageResult.exitCode === 0 && !result.packageResult.timedOut));
 
@@ -30,10 +32,8 @@ export function createUpdateState() {
 
 /**
  * Pure, profile-independent update coordinator. Dependencies are current DSH services.
- * resolveNpmMetadata({name, source, runtimeVersion}) returns {manifest, registry?}.
- * It MUST use the profile's package-manager authentication, proxy and registry policy;
- * no network client or registry fallback is implemented here. manifest is the exact
- * candidate release (normally npm's latest tag), including dsh/engines/peerDependencies.
+ * Registry bundles use the official listVersions/updateBundle APIs. Only sources
+ * outside the native update contract use the extended resolver and install flow.
  *
  * resolveGithubMetadata({name, source, runtimeVersion}) returns {manifest, spec}
  * for the original GitHub ref; the resolver never runs repository code.
@@ -43,7 +43,7 @@ export function createUpdateState() {
  * Recovery is in-memory: callers needing restart persistence must store snapshots.
  */
 export function createUpdateEngine({
-  manager, market, resolveNpmMetadata, resolveGithubMetadata, runtimeVersion, selfName,
+  manager, market, resolveGithubMetadata, runtimeVersion, selfName,
   state = createUpdateState(),
 }) {
   const snapshot = () => copy({
@@ -63,7 +63,13 @@ export function createUpdateEngine({
     const entries = new Map();
     state.marketErrors = [];
     if (!market) return entries;
-    for (const { url } of await market.listIndexes()) {
+    let indexes;
+    try { indexes = await market.listIndexes(); }
+    catch (error) {
+      state.marketErrors.push({ url: null, message: error.message });
+      return entries;
+    }
+    for (const { url } of indexes) {
       try {
         let offset = 0;
         let fetchedAt;
@@ -110,9 +116,15 @@ export function createUpdateEngine({
         state.plans.delete(bundle.name);
         const item = {
           name: bundle.name, currentVersion: bundle.version ?? null, enabled: bundle.enabled,
-          source: bundle.source ?? null, state: 'blocked', reason: null, target: null, retryable: false,
+          source: bundle.source ?? null, support: 'unavailable', state: 'blocked', reason: null, target: null, retryable: false,
         };
         state.items.push(item);
+        if (bundle.updatable) {
+          item.support = 'native';
+          item.state = 'checking';
+          unchecked.push({ bundle, item });
+          continue;
+        }
         if (bundle.availability === 'installation') { item.reason = 'builtin'; continue; }
         if (!bundle.installed) { item.reason = 'not-installed'; continue; }
         if (!bundle.removable) { item.reason = 'not-removable'; continue; }
@@ -124,18 +136,36 @@ export function createUpdateEngine({
       // Publish the full inventory before market or package metadata queries.
       // Failed installations can disappear from listBundles; keep their recovery plans.
       state.items.push(...previous.values());
-      const markets = await readMarkets();
+      const markets = unchecked.some(({ item }) => item.support !== 'native') ? await readMarkets() : new Map();
+      if (!unchecked.some(({ item }) => item.support !== 'native')) state.marketErrors = [];
       for (const { bundle, item } of unchecked) {
         try {
           let target;
           const entry = markets.get(bundle.name);
-          if (entry) {
+          if (item.support === 'native') {
+            const list = await manager.listVersions(bundle.name);
+            item.versions = list;
+            if (list.status !== 'listed') {
+              item.state = 'check-failed'; item.reason = list.reason; continue;
+            }
+            // Match the official UI's default: newest installable stable release.
+            const release = list.versions.find(version => version.bundle && !version.incompatible
+              && version.deprecated === undefined && !version.prerelease);
+            if (!release) {
+              item.state = list.versions.length ? 'blocked' : 'current';
+              item.reason = list.versions.length ? 'no-installable-version' : null;
+              continue;
+            }
+            target = { version: release.version, registry: list.registry, origin: 'native' };
+          } else if (entry) {
+            item.support = 'extended';
             const release = entry.versions.find(version => version.version === entry.defaultVersion);
             if (!release || !release.compatibility.compatible) {
               item.reason = 'incompatible'; continue;
             }
             target = { ...release.install, version: release.version, origin: 'market' };
           } else if (parseGithubSource(bundle.source)) {
+            item.support = 'extended';
             if (state.marketErrors.length) { item.reason = 'market-unavailable'; continue; }
             const { manifest, spec } = await resolveGithubMetadata({
               name: bundle.name, source: bundle.source, runtimeVersion,
@@ -145,25 +175,8 @@ export function createUpdateEngine({
             if (!manifestCompatible(manifest, runtimeVersion)) { item.reason = 'incompatible'; continue; }
             target = { spec, version: manifest.version, origin: 'github' };
           } else {
-            // Other Git hosts, tarballs and npm aliases cannot be converted to name@latest.
-            const prefix = `${bundle.name}@`;
-            if (!bundle.source.startsWith(prefix)
-              || !/^(?:latest|[~^<>=*\d]|[A-Za-z][\w.-]*$)/.test(bundle.source.slice(prefix.length))
-              || /(?:npm:|https?:|git[:+]|github:)/.test(bundle.source.slice(prefix.length))) {
-              item.reason = 'unsupported-source'; continue;
-            }
-            // A failed index may own this package; do not silently switch source.
-            if (state.marketErrors.length) { item.reason = 'market-unavailable'; continue; }
-            const { manifest, registry } = await resolveNpmMetadata({
-              name: bundle.name, source: bundle.source, runtimeVersion,
-            });
-            if (manifest.name !== bundle.name) throw new Error('npm-package-name-mismatch');
-            if (manifest.dsh?.bundle === undefined) { item.reason = 'not-bundle'; continue; }
-            if (!manifestCompatible(manifest, runtimeVersion)) { item.reason = 'incompatible'; continue; }
-            target = {
-              spec: `${bundle.name}@${manifest.version}`, version: manifest.version, origin: 'npm',
-              ...(registry === undefined ? {} : { registry }),
-            };
+            item.reason = state.marketErrors.length ? 'market-unavailable' : 'unsupported-source';
+            continue;
           }
           if (!semver.valid(target.version)) throw new Error('invalid-target-version');
           if (!semver.gt(target.version, bundle.version)) { item.state = 'current'; continue; }
@@ -182,6 +195,45 @@ export function createUpdateEngine({
     });
   }
 
+  async function updateNative(item, plan) {
+    const requestId = randomUUID();
+    plan.requestId = requestId;
+    item.state = 'checking';
+    delete item.restoreResult;
+    try {
+      const outcome = await manager.updateBundle(item.name, plan.target.version, {
+        registry: plan.target.registry, requestId,
+      });
+      item.result = outcome.result;
+      item.restoreResult = outcome.restore;
+      if (outcome.step === 'install' && successful(outcome.result)) {
+        item.state = outcome.result.application === 'restart-required' ? 'restart-required' : 'succeeded';
+        if (outcome.result.bundle !== item.name || outcome.result.version !== plan.target.version) {
+          item.state = 'failed'; item.reason = 'installed-target-mismatch';
+        }
+      } else {
+        item.state = outcome.restore && successful(outcome.restore) ? 'restored'
+          : needsBuildApproval(outcome.result) ? 'pending-builds' : 'failed';
+        item.reason = outcome.result.error?.code ?? outcome.result.application;
+      }
+    } catch (error) {
+      item.state = 'failed'; item.reason = error.message;
+    } finally {
+      delete plan.requestId;
+      const after = (await manager.listBundles()).find(bundle => bundle.name === item.name);
+      plan.expected = identity(after);
+      // Native update requires an installed, eligible, older version. A failed
+      // activation may already have saved the target: that needs native review.
+      item.retryable = !['succeeded', 'restart-required'].includes(item.state)
+        && !!after?.updatable && semver.lt(after.version, plan.target.version);
+    }
+  }
+
+  function updateProgress(progress) {
+    const item = state.items.find(item => state.plans.get(item.name)?.requestId === progress.requestId);
+    if (item) item.state = progress.step;
+  }
+
   async function update(item) {
     const plan = state.plans.get(item.name);
     const current = (await manager.listBundles()).find(bundle => bundle.name === item.name);
@@ -192,6 +244,7 @@ export function createUpdateEngine({
     item.reason = null;
     item.retryable = false;
     item.result = null;
+    if (plan.target.origin === 'native') return updateNative(item, plan);
     try {
       if (!plan.removed) {
         item.state = 'removing';
@@ -201,7 +254,7 @@ export function createUpdateEngine({
         // That installation path explicitly supports overwriting the dependency.
         if (removal.error?.code !== 'stop-profile') {
           if (!successful(removal)) {
-            item.state = removal.pendingBuilds?.length ? 'pending-builds' : 'failed';
+            item.state = needsBuildApproval(removal) ? 'pending-builds' : 'failed';
             item.reason = removal.error?.code ?? removal.application;
             item.retryable = true;
             return;
@@ -223,7 +276,7 @@ export function createUpdateEngine({
           item.state = 'failed'; item.reason = 'installed-target-mismatch'; item.retryable = true;
         }
       } else {
-        item.state = result.pendingBuilds?.length ? 'pending-builds' : 'failed';
+        item.state = needsBuildApproval(result) ? 'pending-builds' : 'failed';
         item.reason = result.error?.code ?? result.application;
         item.retryable = true;
       }
@@ -275,6 +328,7 @@ export function createUpdateEngine({
   return {
     snapshot,
     status: snapshot,
+    updateProgress,
     check,
     start({ generation: expectedGeneration, names }) {
       assertIdle();

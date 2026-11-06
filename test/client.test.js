@@ -1,15 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import { readFile } from 'node:fs/promises';
+import { build } from 'esbuild';
 import * as zod from 'zod';
 import { Context, Service } from '@deepseek-ai/cordis';
 import * as gatewayClient from '@deepseek-ai/dsh-api-gateway/client';
 
-const source = await readFile(new URL('../client.js', import.meta.url), 'utf8');
+// Exercise current client source without writing the release bundle.
+const { outputFiles } = await build({
+  entryPoints: [new URL('../client.source.js', import.meta.url).pathname],
+  bundle: true, write: false, platform: 'browser', format: 'cjs',
+  external: ['react', 'zod', '@deepseek-ai/dsh-client-ui-primitives'],
+  banner: { js: "window.__ModuleLoader__.load({id:'dsh-plugin-enhance',factory(require){const module={exports:{}};" },
+  footer: { js: 'return module.exports;}});' },
+});
+const source = outputFiles[0].text;
+// Keep the UI tree inspectable while exercising the public component prop contract.
+const primitives = { Button: 'button', Input: 'input', Tag: 'mark' };
 
 test('update tab registers localized UI, selects only ready bundles and forwards checked generation', async () => {
   let plugin, Component, dictionaries, registration;
+  let language = 'en';
   let cursor = 0;
   const states = [];
   const effects = [];
@@ -18,7 +29,21 @@ test('update tab registers localized UI, selects only ready bundles and forwards
     ...['plugin-10', 'zeta', 'plugin-2', 'available', 'Alpha'].map(name => ({ name, currentVersion: '1.0.0', state: 'ready', source: `${name}@1`, enabled: true, target: { version: '2.0.0' } })),
     { name: 'protected', currentVersion: '1.0.0', state: 'blocked', source: 'file:../local', enabled: false, reason: 'not-removable' },
     ...['current', 'check-failed', 'failed', 'pending-builds', 'stale', 'removing', 'installing', 'succeeded', 'restart-required'].map(state => ({ name: state, state, currentVersion: '1.0.0', source: `${state}@1`, enabled: true })),
-  ], marketErrors: [] };
+  ], marketErrors: [{ url: null, message: 'Native registry query failed' }] };
+  for (const item of initial.items) item.support = item.state === 'blocked' ? 'unavailable' : item.name === 'Alpha' ? 'native' : 'extended';
+  initial.items.push(
+    { name: 'restoring', state: 'restoring', support: 'native', enabled: true },
+    { name: 'restored', state: 'restored', support: 'native', enabled: true, retryable: true,
+      result: { error: { diagnostic: 'Target install failed' } },
+      restoreResult: { packageResult: { kind: 'ok', exitCode: 0, output: 'Previous version restored' } } },
+  );
+  Object.assign(initial.items.find(item => item.state === 'failed'), {
+    reason: 'operation-error',
+    result: { error: { code: 'operation-error', diagnostic: 'diagnostic-start' + 'x'.repeat(6000) + 'diagnostic-end' },
+      packageResult: { kind: 'build-blocked', exitCode: 1, timedOut: true, truncated: true, logPath: '/tmp/pnpm.log', output: 'output-start' + 'y'.repeat(10000) + 'ERR_PNPM_IGNORED_BUILDS output-end' },
+      pendingBuilds: [] },
+  });
+  initial.items.find(item => item.state === 'pending-builds').result = { error: { diagnostic: 'Activation diagnostic without a package run' } };
   const React = {
     createElement: (type, props, ...children) => ({ type, props: props ?? {}, children: children.flat(Infinity).filter(value => value !== null && value !== undefined && value !== false) }),
     useState(value) { const index = cursor++; if (!(index in states)) states[index] = value; return [states[index], next => { states[index] = typeof next === 'function' ? next(states[index]) : next; }]; },
@@ -26,7 +51,7 @@ test('update tab registers localized UI, selects only ready bundles and forwards
     useSyncExternalStore: () => {},
     useEffect(callback) { const index = cursor++; if (!(index in states)) { states[index] = true; effects.push(callback()); } },
   };
-  vm.runInNewContext(source, { window: { __ModuleLoader__: { load(value) { plugin = value.factory(name => { if (name === 'zod') return zod; assert.equal(name, 'react'); return React; }); } } }, setTimeout: () => 0, clearTimeout() {} });
+  vm.runInNewContext(source, { window: { __ModuleLoader__: { load(value) { plugin = value.factory(name => { if (name === 'zod') return zod; if (name === '@deepseek-ai/dsh-client-ui-primitives') return primitives; assert.equal(name, 'react'); return React; }); } } }, setTimeout: () => 0, clearTimeout() {} });
   assert.deepEqual(Array.from(plugin.inject), ['slots', 'locale', 'remote']);
   let finishMount, unmounted = false;
   const mountReady = new Promise(resolve => { finishMount = resolve; });
@@ -47,7 +72,7 @@ test('update tab registers localized UI, selects only ready bundles and forwards
   };
   const activating = plugin.apply({
     effect(callback) { resources.push(callback()); },
-    locale: { register(ns, dicts) { assert.equal(ns, 'dsh-plugin-enhance'); dictionaries = dicts; return () => {}; }, bind: () => key => dictionaries.en[key], subscribe: () => () => {}, getSnapshot: () => ({ revision: 1 }) },
+    locale: { register(ns, dicts) { assert.equal(ns, 'dsh-plugin-enhance'); dictionaries = dicts; return () => {}; }, bind: () => key => dictionaries[language][key], subscribe: () => () => {}, getSnapshot: () => ({ revision: 1 }) },
     slots: { inject(name, callback) { assert.equal(name, 'plugins.tab'); callback(); }, register(options, component) { registration = options; Component = component; return () => {}; } },
     remote,
     inject(keys, callback) {
@@ -60,8 +85,9 @@ test('update tab registers localized UI, selects only ready bundles and forwards
   assert.equal(remote.pluginEnhance, undefined);
   finishMount();
   await activating;
-  assert.equal(registration.label(), 'Updates');
-  assert.ok(dictionaries.zh.tab);
+  assert.equal(registration.label(), 'Enhanced management');
+  assert.equal(dictionaries.zh.tab, '增强管理');
+  assert.deepEqual(Object.keys(dictionaries.en).sort(), Object.keys(dictionaries.zh).sort());
   const render = () => { cursor = 0; return Component(); };
   const flatten = node => typeof node !== 'object' ? [] : [node, ...node.children.flatMap(flatten)];
   render();
@@ -72,21 +98,73 @@ test('update tab registers localized UI, selects only ready bundles and forwards
   const search = () => nodes.find(node => node.type === 'input' && node.props.type === 'search');
   const headings = () => nodes.filter(node => node.type === 'h3').map(node => node.children[0]);
   assert.equal(button('Update selected').props.disabled, true);
+  assert.equal(button('Update selected').props.variant, 'primary');
+  assert.equal(button('Check for updates').props.variant, 'outline');
+  assert.equal(button('Check for updates').props.size, 'sm');
+  assert.equal(search().props['aria-label'], dictionaries.en.search);
+  assert.ok(nodes.some(node => node.props.role === 'alert' && node.children.includes('Native registry query failed')));
+  assert.ok(!nodes.some(node => node.children.includes('null: Native registry query failed')));
+  const failure = nodes.find(node => node.type === 'tr' && flatten(node).some(child => child.props['aria-label'] === 'failed'));
+  const failureNodes = flatten(failure);
+  const diagnostics = failureNodes.filter(node => node.type === 'pre').map(node => node.children.join(''));
+  assert.equal(diagnostics.length, 2);
+  assert.ok(diagnostics[0].startsWith('diagnostic-start') && diagnostics[0].endsWith('diagnostic-end'));
+  assert.ok(diagnostics[1].startsWith('output-start') && diagnostics[1].endsWith('ERR_PNPM_IGNORED_BUILDS output-end'));
+  assert.ok(diagnostics[0].length < 2100 && diagnostics[1].length < 4100);
+  for (const text of [dictionaries.en.buildBlocked, dictionaries.en.timedOut, dictionaries.en.outputTruncated, 'Full log: /tmp/pnpm.log', 'build-blocked · Exit code: 1']) {
+    assert.ok(failureNodes.some(node => node.children.includes(text)), text);
+  }
+  assert.ok(nodes.some(node => node.type === 'pre' && node.children.includes('Activation diagnostic without a package run')));
+  language = 'zh';
+  const chinese = flatten(render());
+  assert.ok(chinese.some(node => node.children.includes(dictionaries.zh.buildBlocked)));
+  for (const key of ['native', 'extended', 'restoring', 'restored']) assert.ok(chinese.some(node => node.children.includes(dictionaries.zh[key])), key);
+  assert.equal(registration.label(), '增强管理');
+  assert.match(dictionaries.zh.buildBlocked, /官方插件管理器.*明确授权/);
+  assert.match(dictionaries.en.buildBlocked, /explicitly approve.*official plugin manager/);
+  language = 'en';
+  nodes = flatten(render());
   await button('Update').props.onClick();
   assert.deepEqual(JSON.parse(JSON.stringify(calls.shift())), { generation: 7, names: ['Alpha'] });
   nodes = flatten(render());
   assert.equal(filter('All plugins').props['aria-pressed'], true);
   const rowNames = tree => flatten(tree).filter(node => node.type === 'input' && node.props.type === 'checkbox' && node.props['aria-label'] !== 'Select visible updates').map(node => node.props['aria-label']);
   assert.deepEqual(initial.items.slice(0, 5).map(item => item.name), ['plugin-10', 'zeta', 'plugin-2', 'available', 'Alpha']);
-  assert.deepEqual(headings(), ['Update available (5)', 'Updating (2)', 'Needs attention (4)', 'Updated (2)', 'Up to date (1)', 'Unavailable (1)']);
+  assert.deepEqual(headings(), ['Update available (5)', 'Updating (3)', 'Needs attention (5)', 'Updated (2)', 'Up to date (1)', 'Unavailable (1)']);
   assert.deepEqual(nodes.filter(node => node.type === 'table').map(rowNames), [
     ['Alpha', 'available', 'plugin-2', 'plugin-10', 'zeta'],
-    ['installing', 'removing'],
-    ['check-failed', 'failed', 'pending-builds', 'stale'],
+    ['installing', 'removing', 'restoring'],
+    ['check-failed', 'failed', 'pending-builds', 'restored', 'stale'],
     ['restart-required', 'succeeded'],
     ['current'],
     ['protected'],
   ]);
+  assert.ok(nodes.some(node => node.type === 'mark' && node.children.includes('Native support') && node.props.tone === 'neutral'));
+  assert.ok(nodes.some(node => node.type === 'mark' && node.children.includes('Extended support')));
+  assert.ok(nodes.some(node => node.children.includes('Update failed; previous version restored')));
+  const restoredRow = nodes.find(node => node.type === 'tr' && flatten(node).some(child => child.props['aria-label'] === 'restored'));
+  assert.ok(flatten(restoredRow).some(node => node.type === 'pre' && node.children.includes('Target install failed')));
+  assert.ok(flatten(restoredRow).some(node => node.type === 'pre' && node.children.includes('Previous version restored')));
+  assert.ok(flatten(restoredRow).some(node => node.children.includes('Restore details')));
+  filter('Native support').props.onClick();
+  nodes = flatten(render());
+  assert.deepEqual(rowNames(render()), ['Alpha', 'restoring', 'restored']);
+  filter('Update available').props.onClick();
+  nodes = flatten(render());
+  assert.deepEqual(rowNames(render()), ['Alpha']);
+  filter('Extended support').props.onClick();
+  nodes = flatten(render());
+  assert.deepEqual(rowNames(render()), ['available', 'plugin-2', 'plugin-10', 'zeta']);
+  filter('Unavailable').props.onClick();
+  nodes = flatten(render());
+  assert.ok(nodes.some(node => node.children.includes(dictionaries.en.noMatch)));
+  button('Clear filters').props.onClick();
+  nodes = flatten(render());
+  filter('Unavailable').props.onClick();
+  nodes = flatten(render());
+  assert.deepEqual(rowNames(render()), ['protected']);
+  filter('All support types').props.onClick();
+  nodes = flatten(render());
   assert.equal(nodes.find(node => node.props['aria-label'] === 'protected').props.disabled, true);
   assert.equal(rowNames(render()).length, initial.items.length);
   filter('Update available').props.onClick();
@@ -134,7 +212,7 @@ test('real Cordis and Client Remote allow the update tab to poll, check and unlo
     useSyncExternalStore() {},
     useEffect(callback) { effects.push(callback()); },
   };
-  vm.runInNewContext(source, { window: { __ModuleLoader__: { load(value) { plugin = value.factory(name => name === 'zod' ? zod : React); } } }, setTimeout: () => 0, clearTimeout() {} });
+  vm.runInNewContext(source, { window: { __ModuleLoader__: { load(value) { plugin = value.factory(name => name === 'zod' ? zod : name === '@deepseek-ai/dsh-client-ui-primitives' ? primitives : React); } } }, setTimeout: () => 0, clearTimeout() {} });
   const ctx = new Context();
   let mounted = false;
   ctx.provide('typert', { remotes: { register() { mounted = true; return () => { mounted = false; }; } } });
@@ -182,6 +260,7 @@ test('failed Remote mounting rejects activation before registering the update ta
   let plugin;
   vm.runInNewContext(source, { window: { __ModuleLoader__: { load(value) { plugin = value.factory(name => {
     if (name === 'zod') return zod;
+    if (name === '@deepseek-ai/dsh-client-ui-primitives') return primitives;
     assert.equal(name, 'react');
     return { createElement() {} };
   }); } } } });

@@ -28,8 +28,12 @@ function fixture(initial = [bundle('alpha')], dependencies = {}) {
     },
   };
   const engine = createUpdateEngine({
-    manager, runtimeVersion: '0.2.1-rc.5', selfName: 'updater',
-    resolveNpmMetadata: async ({ name }) => ({ manifest: manifest(name) }),
+    manager, runtimeVersion: '0.2.2-rc.1', selfName: 'updater',
+    market: market(initial.filter(({ name, source }) => source === `${name}@^1.0.0`).map(({ name }) => ({
+      name, defaultVersion: '2.0.0', versions: [{
+        ...release('2.0.0'), install: { spec: `${name}@2.0.0` },
+      }],
+    }))),
     ...dependencies,
   });
   return { engine, manager, calls, change: value => { bundles = structuredClone(value); } };
@@ -52,10 +56,155 @@ function market(entries) {
   };
 }
 
-test('npm check, selected serial update and original disabled state', async () => {
+const nativeRelease = (version, extra = {}) => ({ version, bundle: true, prerelease: false, tags: [], ...extra });
+const versionList = (versions = [nativeRelease('2.0.0')]) => ({
+  status: 'listed', installed: '1.0.0', registry: 'https://private.example', versions,
+});
+function nativeFixture(dependencies = {}, initial = [bundle('alpha', { updatable: true, enabled: false })]) {
+  const f = fixture(initial, dependencies);
+  f.manager.listVersions = async () => versionList();
+  f.manager.updateBundle = async (name, version, options) => {
+    f.calls.push(['update', name, version, options]);
+    const installed = await f.manager.listBundles();
+    f.change(installed.map(item => item.name === name ? { ...item, version } : item));
+    return { from: '1.0.0', to: version, step: 'install', result: outcome({ bundle: name, version }) };
+  };
+  return f;
+}
+
+test('native update delegates to the manager and preserves disabled state without remove/install', async () => {
+  const f = nativeFixture();
+  const check = await f.engine.check();
+  assert.equal(check.items[0].support, 'native');
+  const result = await f.engine.start({ generation: check.generation, names: ['alpha'] });
+  assert.equal(result.items[0].state, 'succeeded');
+  assert.equal(result.items[0].retryable, false);
+  assert.equal(f.calls.length, 1);
+  assert.deepEqual(f.calls[0].slice(0, 3), ['update', 'alpha', '2.0.0']);
+  assert.equal(f.calls[0][3].registry, 'https://private.example');
+  assert.equal(typeof f.calls[0][3].requestId, 'string');
+  assert.equal((await f.manager.listBundles())[0].enabled, false);
+});
+
+test('native-only checks do not query markets; mixed checks survive market index and search failures', async () => {
+  const unusedMarket = {
+    listIndexes() { assert.fail('native-only check must not query markets'); },
+  };
+  assert.equal((await nativeFixture({ market: unusedMarket }).engine.check()).items[0].state, 'ready');
+  for (const stage of ['indexes', 'search']) {
+    const f = nativeFixture({
+      market: {
+        listIndexes() {
+          if (stage === 'indexes') throw new Error('index offline');
+          return [{ url: 'https://market.example/index.json' }];
+        },
+        search() { throw new Error('search offline'); },
+      },
+      resolveGithubMetadata() { assert.fail('market failure cannot fall back to GitHub'); },
+    }, [bundle('alpha', { updatable: true }), bundle('beta', { source: 'github:owner/beta' })]);
+    const check = await f.engine.check();
+    assert.equal(check.items[0].state, 'ready');
+    assert.equal(check.items[0].support, 'native');
+    assert.equal(check.items[1].reason, 'market-unavailable');
+    assert.equal(check.marketErrors.length, 1);
+  }
+});
+
+test('native progress only follows the active requestId and ignores completed requests', async () => {
+  const f = nativeFixture();
+  const entered = Promise.withResolvers();
+  const gate = Promise.withResolvers();
+  const update = f.manager.updateBundle;
+  f.manager.updateBundle = async (...args) => {
+    entered.resolve(args[2].requestId);
+    await gate.promise;
+    return update(...args);
+  };
+  const check = await f.engine.check();
+  const running = f.engine.start({ generation: check.generation, names: ['alpha'] });
+  const requestId = await entered.promise;
+  f.engine.updateProgress({ requestId: 'unrelated', step: 'restoring' });
+  assert.equal(f.engine.status().items[0].state, 'checking');
+  for (const step of ['removing', 'installing', 'restoring']) {
+    f.engine.updateProgress({ requestId, step });
+    assert.equal(f.engine.status().items[0].state, step);
+  }
+  gate.resolve();
+  assert.equal((await running).items[0].state, 'succeeded');
+  f.engine.updateProgress({ requestId, step: 'restoring' });
+  assert.equal(f.engine.status().items[0].state, 'succeeded');
+});
+
+test('native failed target keeps restoration separate and retries through the manager', async () => {
+  for (const restore of [outcome({ bundle: 'alpha', version: '1.0.0' }), outcome({ application: 'failed' }), undefined]) {
+    const f = nativeFixture();
+    const update = f.manager.updateBundle;
+    const failure = outcome({ application: 'failed', error: { code: 'install-failed' } });
+    f.manager.updateBundle = async (...args) => {
+      f.calls.push(['failed-update', ...args]);
+      return { from: '1.0.0', to: '2.0.0', step: 'install', result: failure, restore };
+    };
+    const check = await f.engine.check();
+    const failed = await f.engine.start({ generation: check.generation, names: ['alpha'] });
+    assert.equal(failed.items[0].state, restore?.application === 'applied' ? 'restored' : 'failed');
+    assert.equal(failed.items[0].reason, 'install-failed');
+    assert.deepEqual(failed.items[0].result, failure);
+    assert.deepEqual(failed.items[0].restoreResult, restore);
+    assert.equal(failed.items[0].retryable, true);
+    assert.equal((await f.engine.check()).items[0].target.version, '2.0.0');
+    f.manager.updateBundle = update;
+    const retried = await f.engine.retry();
+    assert.equal(retried.items[0].state, 'succeeded');
+    assert.deepEqual(f.calls.map(call => call[0]), ['failed-update', 'update']);
+    assert.notEqual(f.calls[0][3].requestId, f.calls[1][3].requestId);
+  }
+});
+
+test('native results enforce exact installed target, build approval and activation failures', async () => {
+  for (const [result, state, reason] of [
+    [outcome({ bundle: 'other', version: '2.0.0' }), 'failed', 'installed-target-mismatch'],
+    [outcome({ bundle: 'alpha', version: '1.9.0' }), 'failed', 'installed-target-mismatch'],
+    [outcome({ bundle: 'alpha', version: '2.0.0', application: 'restart-required' }), 'restart-required', null],
+    [outcome({ pendingBuilds: ['dependency'] }), 'pending-builds', 'applied'],
+    [outcome({ application: 'failed', pendingBuilds: [], packageResult: { kind: 'build-blocked', exitCode: 1 }, error: { code: 'operation-error' } }), 'pending-builds', 'operation-error'],
+    [outcome({ application: 'failed', error: { code: 'activation-failed' } }), 'failed', 'activation-failed'],
+  ]) {
+    const f = nativeFixture();
+    f.manager.updateBundle = async () => ({ from: '1.0.0', to: '2.0.0', step: 'install', result });
+    const check = await f.engine.check();
+    const updated = await f.engine.start({ generation: check.generation, names: ['alpha'] });
+    assert.equal(updated.items[0].state, state);
+    assert.equal(updated.items[0].reason, reason);
+    assert.deepEqual(updated.items[0].result, result);
+    assert.deepEqual(f.calls, []);
+  }
+});
+
+test('native update rejection never falls back and saved target activation failure cannot be retried', async () => {
+  for (const savedTarget of [false, true]) {
+    const f = nativeFixture();
+    f.manager.updateBundle = async () => {
+      if (!savedTarget) throw new Error('native transport failed');
+      f.change([bundle('alpha', { version: '2.0.0', updatable: true, enabled: false })]);
+      return { from: '1.0.0', to: '2.0.0', step: 'install', result: outcome({
+        application: 'failed', error: { code: 'activation-failed' },
+      }) };
+    };
+    const check = await f.engine.check();
+    const result = await f.engine.start({ generation: check.generation, names: ['alpha'] });
+    assert.equal(result.items[0].state, 'failed');
+    assert.equal(result.items[0].reason, savedTarget ? 'activation-failed' : 'native transport failed');
+    assert.equal(result.items[0].retryable, !savedTarget);
+    assert.deepEqual(f.calls, []);
+    if (savedTarget) assert.throws(() => f.engine.retry({ names: ['alpha'] }), /package-not-selectable/);
+  }
+});
+
+test('extended market check, selected serial update and original disabled state', async () => {
   const f = fixture([bundle('alpha', { enabled: false }), bundle('beta')]);
   const check = await f.engine.check();
   assert.deepEqual(check.items.map(item => item.state), ['ready', 'ready']);
+  assert.deepEqual(check.items.map(item => item.support), ['extended', 'extended']);
   const result = await f.engine.start({ generation: check.generation, names: ['alpha', 'beta'] });
   assert.deepEqual(f.calls.map(call => call.slice(0, 2)), [
     ['remove', 'alpha'], ['install', 'alpha@2.0.0'], ['remove', 'beta'], ['install', 'beta@2.0.0'],
@@ -70,14 +219,14 @@ test('npm check, selected serial update and original disabled state', async () =
 test('status publishes the full inventory before deferred markets and metadata resolve', async () => {
   const indexes = Promise.withResolvers();
   const search = Promise.withResolvers();
-  const npm = Promise.withResolvers();
+  const versions = Promise.withResolvers();
   const github = Promise.withResolvers();
   const enteredIndexes = Promise.withResolvers();
   const enteredSearch = Promise.withResolvers();
-  const enteredNpm = Promise.withResolvers();
+  const enteredVersions = Promise.withResolvers();
   const enteredGithub = Promise.withResolvers();
   const f = fixture([
-    bundle('alpha', { enabled: false }),
+    bundle('alpha', { enabled: false, updatable: true }),
     bundle('beta', { source: 'github:owner/beta#main' }),
     bundle('builtin', { availability: 'installation' }),
     bundle('missing', { installed: false }),
@@ -89,9 +238,9 @@ test('status publishes the full inventory before deferred markets and metadata r
       listIndexes() { enteredIndexes.resolve(); return indexes.promise; },
       search() { enteredSearch.resolve(); return search.promise; },
     },
-    resolveNpmMetadata() { enteredNpm.resolve(); return npm.promise; },
     resolveGithubMetadata() { enteredGithub.resolve(); return github.promise; },
   });
+  f.manager.listVersions = () => { enteredVersions.resolve(); return versions.promise; };
   const running = f.engine.check();
   await enteredIndexes.promise;
   const during = f.engine.status();
@@ -109,7 +258,7 @@ test('status publishes the full inventory before deferred markets and metadata r
   ]);
   assert.deepEqual(during.items[0], {
     name: 'alpha', currentVersion: '1.0.0', enabled: false, source: 'alpha@^1.0.0',
-    state: 'checking', reason: null, target: null, retryable: false,
+    support: 'native', state: 'checking', reason: null, target: null, retryable: false,
   });
   during.items[0].state = 'tampered';
   assert.equal(f.engine.status().items[0].state, 'checking');
@@ -122,9 +271,9 @@ test('status publishes the full inventory before deferred markets and metadata r
   assert.equal(f.engine.status().items.length, 7);
   assert.equal(f.engine.status().items[0].state, 'checking');
   search.resolve({ fetchedAt: 1234, entries: [], nextOffset: null });
-  await enteredNpm.promise;
+  await enteredVersions.promise;
   assert.deepEqual(f.engine.status().items.slice(0, 2).map(item => item.state), ['checking', 'checking']);
-  npm.resolve({ manifest: manifest('alpha') });
+  versions.resolve(versionList());
   await enteredGithub.promise;
   assert.deepEqual(f.engine.status().items.slice(0, 2).map(item => item.state), ['ready', 'checking']);
   github.resolve({ manifest: manifest('beta'), spec: 'github:owner/beta#main' });
@@ -149,7 +298,7 @@ test('market refresh paginates with fetchedAt and permits Git targets', async ()
       })])], nextOffset: null };
   };
   const f = fixture([bundle('alpha', { source: 'git+https://example.org/repo.git#old' })], {
-    market: m, resolveNpmMetadata: () => { throw new Error('must not use npm'); },
+    market: m,
   });
   const check = await f.engine.check();
   assert.equal(requests[0].refresh, true);
@@ -162,7 +311,6 @@ test('GitHub source checks its repository and installs the resolved target prese
   const source = 'github:owner/alpha#main';
   const spec = 'git+https://github.com/owner/alpha.git#main';
   const f = fixture([bundle('alpha', { source, enabled: false })], {
-    resolveNpmMetadata: () => { throw new Error('must not use npm'); },
     resolveGithubMetadata: async input => {
       assert.equal(input.source, source);
       return { manifest: manifest('alpha'), spec };
@@ -186,6 +334,9 @@ test('GitHub candidates enforce package identity, bundle, compatibility and newe
     [{ name: 'other' }, 'check-failed', 'github-package-name-mismatch'],
     [{ dsh: undefined }, 'blocked', 'not-bundle'],
     [{ engines: { dsh: '>=9' } }, 'blocked', 'incompatible'],
+    [{ engines: { dsh: '' } }, 'blocked', 'incompatible'],
+    [{ engines: undefined, peerDependencies: { '@deepseek-ai/dsh': '>=9' } }, 'blocked', 'incompatible'],
+    [{ engines: undefined, peerDependencies: { '@deepseek-ai/dsh-core': '>=9' } }, 'blocked', 'incompatible'],
     [{ version: 'broken' }, 'check-failed', 'invalid-target-version'],
     [{ version: '1.0.0' }, 'current', null],
     [{ version: '0.9.0' }, 'current', null],
@@ -205,7 +356,6 @@ test('GitHub query failure and market failure remain visible without npm fallbac
   const f = fixture([bundle('alpha', { source: 'github:owner/alpha' })], {
     market: m,
     resolveGithubMetadata: async () => { throw new Error('github lookup failed'); },
-    resolveNpmMetadata: () => { throw new Error('must not use npm'); },
   });
   assert.equal((await f.engine.check()).items[0].reason, 'github lookup failed');
   m.search = async () => { throw new Error('market offline'); };
@@ -234,20 +384,43 @@ test('exclude builtins, local, nonremovable, git and npm alias sources', async (
   assert.deepEqual(check.items.map(item => item.reason), [
     'builtin', 'local-or-unknown-source', 'not-removable', 'unsupported-source', 'unsupported-source',
   ]);
+  assert.ok(check.items.every(item => item.support === 'unavailable'));
   assert.equal(f.calls.length, 0);
 });
 
-test('npm compatibility includes peer fallback and rejects name mismatch or nonbundle', async () => {
-  for (const [change, reason] of [
-    [{ engines: { dsh: '>=9' } }, 'incompatible'],
-    [{ engines: { dsh: '' } }, 'incompatible'],
-    [{ engines: undefined, peerDependencies: { '@deepseek-ai/dsh-core': '>=9' } }, 'incompatible'],
-    [{ engines: undefined, peerDependencies: { '@deepseek-ai/dsh': '>=9' } }, 'incompatible'],
-    [{ name: 'other' }, 'npm-package-name-mismatch'],
-    [{ dsh: undefined }, 'not-bundle'],
+test('native selection skips prerelease, nonbundle, deprecated and incompatible releases', async () => {
+  const f = nativeFixture();
+  const list = versionList([
+    nativeRelease('6.0.0-beta.1', { prerelease: true }),
+    nativeRelease('5.0.0', { bundle: false }),
+    nativeRelease('4.0.0', { deprecated: 'obsolete' }),
+    nativeRelease('3.0.0', { incompatible: { reason: 'runtime' } }),
+    nativeRelease('2.0.0', { tags: [] }),
+    nativeRelease('1.5.0', { tags: ['latest'] }),
+  ]);
+  f.manager.listVersions = async name => { assert.equal(name, 'alpha'); return list; };
+  const item = (await f.engine.check()).items[0];
+  assert.equal(item.support, 'native');
+  assert.equal(item.state, 'ready');
+  assert.deepEqual(item.versions, list);
+  assert.deepEqual(item.target, { version: '2.0.0', registry: list.registry, origin: 'native' });
+});
+
+test('native lists distinguish current, unavailable and no installable versions', async () => {
+  for (const [list, state, reason] of [
+    [versionList([]), 'current', null],
+    [versionList([nativeRelease('1.0.0')]), 'current', null],
+    [versionList([nativeRelease('0.9.0')]), 'current', null],
+    [versionList([nativeRelease('2.0.0', { bundle: false })]), 'blocked', 'no-installable-version'],
+    [{ status: 'unavailable', reason: 'registry-unavailable' }, 'check-failed', 'registry-unavailable'],
   ]) {
-    const f = fixture(undefined, { resolveNpmMetadata: async () => ({ manifest: { ...manifest('alpha'), ...change } }) });
-    assert.equal((await f.engine.check()).items[0].reason, reason);
+    const f = nativeFixture();
+    f.manager.listVersions = async () => list;
+    const item = (await f.engine.check()).items[0];
+    assert.equal(item.support, 'native');
+    assert.equal(item.state, state);
+    assert.equal(item.reason, reason);
+    assert.deepEqual(f.calls, []);
   }
 });
 
@@ -256,13 +429,17 @@ test('engines.dsh overrides peer ranges; workspace peers match current runtime',
     { engines: { dsh: '>=0.2.0' }, peerDependencies: { '@deepseek-ai/dsh-core': '>=9' } },
     { engines: undefined, peerDependencies: { '@deepseek-ai/dsh-core': 'workspace:^' } },
   ]) {
-    const f = fixture(undefined, { resolveNpmMetadata: async () => ({ manifest: { ...manifest('alpha'), ...fields } }) });
+    const f = fixture([bundle('alpha', { source: 'github:owner/alpha' })], {
+      resolveGithubMetadata: async () => ({ manifest: { ...manifest('alpha'), ...fields }, spec: 'github:owner/alpha' }),
+    });
     assert.equal((await f.engine.check()).items[0].state, 'ready');
   }
 });
 
-test('npm resolver registry is retained and different installed version is not success', async () => {
-  const f = fixture(undefined, { resolveNpmMetadata: async () => ({ manifest: manifest('alpha'), registry: null }) });
+test('market registry is retained and different installed version is not success', async () => {
+  const f = fixture(undefined, { market: market([entry([release('2.0.0', {
+    install: { spec: 'alpha@2.0.0', registry: null },
+  })])]) });
   const install = f.manager.installBundle;
   f.manager.installBundle = async (...args) => ({ ...await install(...args), version: '1.9.0' });
   const check = await f.engine.check();
@@ -279,8 +456,9 @@ test('market exemptions do not bypass incompatible candidate', async () => {
   assert.equal((await f.engine.check()).items[0].reason, 'incompatible');
 });
 
-test('metadata failures remain visible and do not trigger unauthenticated fallback', async () => {
-  const f = fixture(undefined, { resolveNpmMetadata: async () => { throw new Error('profile registry auth failed'); } });
+test('native metadata failures remain visible without extended fallback', async () => {
+  const f = nativeFixture({ market: market([entry([release('9.0.0')])]) });
+  f.manager.listVersions = async () => { throw new Error('profile registry auth failed'); };
   const result = await f.engine.check();
   assert.equal(result.items[0].state, 'check-failed');
   assert.equal(result.items[0].reason, 'profile registry auth failed');
@@ -349,7 +527,13 @@ test('check replaces obsolete GitHub failures after a manual npm installation', 
       const failed = await f.engine.start({ generation: check.generation, names: ['alpha'] });
       assert.equal(failed.items[0].retryable, true);
       f.manager[operation] = original;
-      f.change([bundle('alpha', { version, source: `alpha@^${version}` })]);
+      f.change([bundle('alpha', { version, source: `alpha@^${version}`, updatable: true })]);
+      f.manager.listVersions = async () => versionList();
+      f.manager.updateBundle = async (name, target, options) => {
+        f.calls.push(['update', name, target, options]);
+        f.change([bundle(name, { version: target, updatable: true })]);
+        return { from: version, to: target, step: 'install', result: outcome({ bundle: name, version: target }) };
+      };
 
       const refreshed = await f.engine.check();
       assert.equal(refreshed.items.length, 1);
@@ -366,17 +550,20 @@ test('check replaces obsolete GitHub failures after a manual npm installation', 
         assert.equal(item.state, 'current');
       } else {
         assert.equal(item.state, 'ready');
-        assert.equal(item.target.origin, 'npm');
+        assert.equal(item.support, 'native');
+        assert.equal(item.target.origin, 'native');
         const result = await f.engine.start({ generation: refreshed.generation, names: ['alpha'] });
         assert.equal(result.items[0].state, 'succeeded');
-        assert.deepEqual(f.calls.at(-1), ['install', 'alpha@2.0.0', { enabled: true, saveExact: true }]);
+        assert.deepEqual(f.calls.at(-1).slice(0, 3), ['update', 'alpha', '2.0.0']);
       }
     }
   }
 });
 
 test('deferred checks retain retryable rows and plans for present and missing bundles', async () => {
-  const m = market([]);
+  const m = market(['alpha', 'beta', 'gamma'].map(name => ({
+    name, defaultVersion: '2.0.0', versions: [{ ...release('2.0.0'), install: { spec: `${name}@2.0.0` } }],
+  })));
   const f = fixture([bundle('alpha'), bundle('beta')], { market: m });
   const remove = f.manager.removeBundle;
   const install = f.manager.installBundle;
@@ -414,6 +601,7 @@ test('pending scripts and activation failures never report success or grant appr
   for (const failure of [
     { application: 'failed' }, { pendingBuilds: ['native-dependency'] },
     { application: 'cancelled' }, { packageResult: { exitCode: 1 } },
+    { application: 'failed', pendingBuilds: [], packageResult: { exitCode: 1, kind: 'build-blocked' }, error: { code: 'operation-error', diagnostic: 'ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED' } },
   ]) {
     const f = fixture();
     const install = f.manager.installBundle;
@@ -421,7 +609,8 @@ test('pending scripts and activation failures never report success or grant appr
     const check = await f.engine.check();
     const result = await f.engine.start({ generation: check.generation, names: ['alpha'] });
     assert.equal(result.items[0].retryable, true);
-    assert.equal(result.items[0].state, failure.pendingBuilds ? 'pending-builds' : 'failed');
+    assert.equal(result.items[0].state, failure.pendingBuilds?.length || failure.packageResult?.kind === 'build-blocked' ? 'pending-builds' : 'failed');
+    if (failure.error) assert.deepEqual(result.items[0].result.error, failure.error);
     assert.equal(f.calls[1][2].approvedBuilds, undefined);
     // Saved failed activation requires remove+install on retry, not a blind reinstall.
     f.manager.installBundle = install;
@@ -518,15 +707,20 @@ test('shared state survives module reload during self removal and uses fresh dep
       await removalStarted;
       const freshCalls = [];
       const fresh = reloaded.createUpdateEngine({
-        state, selfName: 'updater', runtimeVersion: '0.2.1-rc.5',
+        state, selfName: 'updater', runtimeVersion: '0.2.2-rc.1',
         manager: {
           listBundles: () => f.manager.listBundles(),
           removeBundle: async name => { freshCalls.push(['remove', name]); return remove(name); },
           installBundle: async (...args) => { freshCalls.push(['install', args[0]]); return install(...args); },
         },
-        resolveNpmMetadata: async ({ name }) => {
-          freshCalls.push(['resolve', name]);
-          return { manifest: { ...manifest(name), version: '3.0.0' } };
+        market: {
+          listIndexes: () => [{ url: 'https://market.example/index.json' }],
+          search: async () => {
+            freshCalls.push(['resolve', 'updater']);
+            return { entries: [{ name: 'updater', defaultVersion: '3.0.0', versions: [
+              { ...release('3.0.0'), install: { spec: 'updater@3.0.0' } },
+            ] }], nextOffset: null };
+          },
         },
       });
       try {

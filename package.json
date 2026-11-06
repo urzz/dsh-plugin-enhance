@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-enhance",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "description": "Improve the plugin management experience, making plugins easier to maintain and use.",
   "type": "module",
   "license": "MIT",
@@ -10,7 +10,7 @@
   },
   "engines": {
     "node": ">=22",
-    "dsh": ">=0.2.1-rc.5 <0.3.0-0"
+    "dsh": ">=0.2.2-rc.1 <0.3.0-0"
   },
   "exports": {
     ".": "./index.js",
@@ -34,7 +34,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "esbuild client.source.js --bundle --preserve-symlinks --platform=browser --format=cjs --external:react --external:zod --banner:js=\"window.__ModuleLoader__.load({id:'dsh-plugin-enhance',factory(require){const module={exports:{}};\" --footer:js=\"return module.exports;}});\" --outfile=client.js && node --check index.js && node --check engine.js && node --check github.js && node --check client.js && node --check typert.host.js && node --check typert.remote-client.js",
+    "build": "esbuild client.source.js --bundle --preserve-symlinks --platform=browser --format=cjs --external:react --external:zod --external:@deepseek-ai/dsh-client-ui-primitives --banner:js=\"window.__ModuleLoader__.load({id:'dsh-plugin-enhance',factory(require){const module={exports:{}};\" --footer:js=\"return module.exports;}});\" --outfile=client.js && node --check index.js && node --check engine.js && node --check github.js && node --check client.js && node --check typert.host.js && node --check typert.remote-client.js",
     "test": "node --test",
     "check": "npm run build && npm test"
   },
@@ -44,18 +44,19 @@
     "execa": "^10.0.1"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "~4.0.5",
-    "@deepseek-ai/dsh-typert-protocol": ">=0.2.1-rc.5 <0.3.0-0",
-    "@deepseek-ai/dsh-plugin-manager": ">=0.2.1-rc.5 <0.3.0-0",
-    "@deepseek-ai/dsh-plugin-market": ">=0.2.1-rc.5 <0.3.0-0",
-    "@deepseek-ai/dsh-tools": ">=0.2.1-rc.5 <0.3.0-0",
-    "@deepseek-ai/dsh-sandbox": ">=0.2.1-rc.5 <0.3.0-0",
-    "@deepseek-ai/dsh-sandbox-policy": ">=0.2.1-rc.5 <0.3.0-0",
-    "@deepseek-ai/dsh-app-boot": ">=0.2.1-rc.5 <0.3.0-0",
-    "@deepseek-ai/dsh-subprocess": ">=0.2.1-rc.5 <0.3.0-0"
+    "@deepseek-ai/cordis": "~4.1.0",
+    "@deepseek-ai/dsh-typert-protocol": ">=0.2.2-rc.1 <0.3.0-0",
+    "@deepseek-ai/dsh-plugin-manager": ">=0.2.2-rc.1 <0.3.0-0",
+    "@deepseek-ai/dsh-plugin-market": ">=0.2.2-rc.1 <0.3.0-0",
+    "@deepseek-ai/dsh-tools": ">=0.2.2-rc.1 <0.3.0-0",
+    "@deepseek-ai/dsh-sandbox": ">=0.2.2-rc.1 <0.3.0-0",
+    "@deepseek-ai/dsh-sandbox-policy": ">=0.2.2-rc.1 <0.3.0-0",
+    "@deepseek-ai/dsh-app-boot": ">=0.2.2-rc.1 <0.3.0-0",
+    "@deepseek-ai/dsh-subprocess": ">=0.2.2-rc.1 <0.3.0-0"
   },
   "devDependencies": {
-    "@deepseek-ai/dsh-api-gateway": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-api-gateway": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.2.2-rc.1",
     "esbuild": "0.25.12"
   },
   "dsh": {
@@ -68,11 +69,13 @@
       "inject": [
         "@deepseek-ai/dsh-client-ui-plugin-manager",
         "@deepseek-ai/dsh-client-locale",
-        "@deepseek-ai/dsh-api-remotes"
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-ui-primitives"
       ],
       "external": [
         "react",
-        "zod"
+        "zod",
+        "@deepseek-ai/dsh-client-ui-primitives"
       ]
     }
   }

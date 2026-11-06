@@ -222,6 +222,7 @@ var TYPERT_REMOTE = createTypertRemoteInfo({
 
 // client.source.js
 var React = __toESM(require("react"), 1);
+var import_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
 var h = React.createElement;
 var copy = {
   en: { tab: "Updates", title: "Plugin updates", check: "Check for updates", selected: "Update selected", all: "Update all available", selectAll: "Select all available", retry: "Retry failed updates", empty: "Check for updates to load installed bundles.", none: "No installed bundles.", busy: "Working\u2026", name: "Plugin", version: "Version", state: "Status", details: "Details", notice: "Updates uninstall the old bundle before installing the new version. An installation failure can leave it uninstalled. Some changes require restarting DSH. Build scripts require separate approval in the plugin manager. The updater runs last; its tab may briefly disappear during reload. If it fails to return, reinstall it with the official plugin manager.", enabled: "Enabled", disabled: "Disabled", pending: "Review pending build scripts in the plugin manager before retrying.", loading: "Loading\u2026", ready: "Update available", current: "Up to date", skipped: "Skipped", error: "Failed", failed: "Failed", updating: "Updating", updated: "Updated", succeeded: "Updated", "restart-required": "Restart required", "pending-builds": "Build approval required", confirm: "I understand that a failed update may leave a plugin uninstalled.", source: "Source", blocked: "Unavailable", "check-failed": "Check failed", removing: "Removing old version", installing: "Installing", stale: "Changed; check again", builtin: "Updated with DSH.", "not-installed": "Not installed in this profile.", "not-removable": "Protected bundle.", "local-or-unknown-source": "Local or unknown source.", "invalid-current-version": "Invalid installed version.", incompatible: "Incompatible with this DSH version.", "unsupported-source": "This source needs a manual update.", "market-unavailable": "Market unavailable; check again before switching sources.", "not-bundle": "The target is not a bundle.", "bundle-changed": "The installed bundle changed; check again.", "installed-target-mismatch": "The installed version differs from the requested target." },
@@ -231,11 +232,17 @@ Object.assign(copy.en, { onlyAvailable: "Only show available updates", noAvailab
 Object.assign(copy.zh, { onlyAvailable: "\u4EC5\u663E\u793A\u53EF\u66F4\u65B0", noAvailable: "\u6682\u65E0\u53EF\u66F4\u65B0\u9879\uFF0C\u53EF\u67E5\u770B\u5168\u90E8\u63D2\u4EF6\u4E86\u89E3\u72B6\u6001\u3002", attention: "\u9700\u5904\u7406" });
 Object.assign(copy.en, { noAttention: "No plugins need attention.", selectAll: "Select visible updates", allPlugins: "All plugins", search: "Search plugins or sources", noMatch: "No matching plugins.", clear: "Clear filters", checking: "Checking for updates", update: "Update", retryOne: "Retry", deselect: "Clear selection", selectedCount: "selected", safety: "Update notes", lastChecked: "Last checked", notChecked: "Not checked yet", actions: "Actions", summary: "Installed bundles and update status" });
 Object.assign(copy.zh, { noAttention: "\u6682\u65E0\u9700\u8981\u5904\u7406\u7684\u63D2\u4EF6\u3002", selectAll: "\u5168\u9009\u5F53\u524D\u53EF\u66F4\u65B0\u9879", allPlugins: "\u5168\u90E8\u63D2\u4EF6", search: "\u641C\u7D22\u63D2\u4EF6\u540D\u79F0\u6216\u6765\u6E90", noMatch: "\u6CA1\u6709\u5339\u914D\u7684\u63D2\u4EF6\u3002", clear: "\u6E05\u9664\u7B5B\u9009", checking: "\u6B63\u5728\u68C0\u67E5\u66F4\u65B0", update: "\u66F4\u65B0", retryOne: "\u91CD\u8BD5", deselect: "\u53D6\u6D88\u9009\u62E9", selectedCount: "\u9879\u5DF2\u9009\u62E9", safety: "\u66F4\u65B0\u987B\u77E5", lastChecked: "\u4E0A\u6B21\u68C0\u67E5", notChecked: "\u5C1A\u672A\u68C0\u67E5", actions: "\u64CD\u4F5C", summary: "\u5DF2\u5B89\u88C5\u7EC4\u5408\u5305\u53CA\u66F4\u65B0\u72B6\u6001" });
+Object.assign(copy.en, { failureDetails: "Failure details", diagnostic: "Diagnostic", packageOutput: "Package manager output", exitCode: "Exit code", timedOut: "Package manager timed out.", outputTruncated: "Output shortened; see the full package manager log.", logPath: "Full log", buildBlocked: "Build scripts were blocked. Review the packages and explicitly approve their build scripts through the official plugin manager before retrying. This updater never grants build approval automatically." });
+Object.assign(copy.zh, { failureDetails: "\u5931\u8D25\u8BE6\u60C5", diagnostic: "\u8BCA\u65AD\u4FE1\u606F", packageOutput: "\u5305\u7BA1\u7406\u5668\u8F93\u51FA", exitCode: "\u9000\u51FA\u7801", timedOut: "\u5305\u7BA1\u7406\u5668\u5DF2\u8D85\u65F6\u3002", outputTruncated: "\u8F93\u51FA\u5DF2\u622A\u77ED\uFF0C\u8BF7\u67E5\u770B\u5305\u7BA1\u7406\u5668\u5B8C\u6574\u65E5\u5FD7\u3002", logPath: "\u5B8C\u6574\u65E5\u5FD7", buildBlocked: "\u6784\u5EFA\u811A\u672C\u88AB\u963B\u6B62\u3002\u8BF7\u5148\u901A\u8FC7\u5B98\u65B9\u63D2\u4EF6\u7BA1\u7406\u5668\u68C0\u67E5\u76F8\u5173\u5305\uFF0C\u5E76\u660E\u786E\u6388\u6743\u5176\u6784\u5EFA\u811A\u672C\uFF0C\u7136\u540E\u91CD\u8BD5\u3002\u672C\u66F4\u65B0\u5668\u7EDD\u4E0D\u4F1A\u81EA\u52A8\u6388\u4E88\u6784\u5EFA\u6743\u9650\u3002" });
+Object.assign(copy.en, { missingBuildList: "The plugin manager returned no packages awaiting approval. Check the failure details and DSH/pnpm compatibility before retrying." });
+Object.assign(copy.zh, { missingBuildList: "\u63D2\u4EF6\u7BA1\u7406\u5668\u672A\u8FD4\u56DE\u5F85\u6388\u6743\u5305\u3002\u8BF7\u67E5\u770B\u5931\u8D25\u8BE6\u60C5\uFF0C\u5E76\u68C0\u67E5 DSH \u4E0E pnpm \u7684\u517C\u5BB9\u6027\u540E\u518D\u91CD\u8BD5\u3002" });
+Object.assign(copy.en, { tab: "Enhanced management", title: "Enhanced management", support: "Update support", native: "Native support", extended: "Extended support", unavailable: "Unavailable", allSupport: "All support types", "no-installable-version": "No compatible stable version is available.", restoring: "Restoring previous version", restored: "Update failed; previous version restored", restoreDetails: "Restore details", notice: "Official updates use the plugin manager\u2019s update flow. Supplemental updates uninstall the old bundle before installing the new version; installation failure may leave it uninstalled. Some changes require restarting DSH. Build scripts require explicit approval in the official plugin manager. The updater runs last; if its tab does not return after reload, reinstall it with the official plugin manager." });
+Object.assign(copy.zh, { tab: "\u589E\u5F3A\u7BA1\u7406", title: "\u589E\u5F3A\u7BA1\u7406", support: "\u66F4\u65B0\u652F\u6301\u7C7B\u578B", native: "\u539F\u751F\u652F\u6301", extended: "\u6269\u5C55\u652F\u6301", unavailable: "\u4E0D\u53EF\u7528", allSupport: "\u5168\u90E8\u652F\u6301\u7C7B\u578B", "no-installable-version": "\u6CA1\u6709\u517C\u5BB9\u7684\u6B63\u5F0F\u7248\u672C\u3002", restoring: "\u6B63\u5728\u6062\u590D\u65E7\u7248", restored: "\u66F4\u65B0\u5931\u8D25\uFF0C\u5DF2\u6062\u590D\u65E7\u7248", restoreDetails: "\u6062\u590D\u8BE6\u60C5", notice: "\u5B98\u65B9\u66F4\u65B0\u4F7F\u7528\u63D2\u4EF6\u7BA1\u7406\u5668\u7684\u66F4\u65B0\u6D41\u7A0B\u3002\u8865\u5145\u66F4\u65B0\u4F1A\u5148\u5378\u8F7D\u65E7\u7EC4\u5408\u5305\uFF0C\u518D\u5B89\u88C5\u65B0\u7248\u672C\uFF1B\u5B89\u88C5\u5931\u8D25\u53EF\u80FD\u5BFC\u81F4\u63D2\u4EF6\u5904\u4E8E\u672A\u5B89\u88C5\u72B6\u6001\u3002\u90E8\u5206\u53D8\u66F4\u9700\u8981\u91CD\u542F DSH\u3002\u6784\u5EFA\u811A\u672C\u9700\u8981\u5728\u5B98\u65B9\u63D2\u4EF6\u7BA1\u7406\u5668\u4E2D\u660E\u786E\u6388\u6743\u3002\u66F4\u65B0\u5668\u81EA\u8EAB\u6392\u5728\u6700\u540E\uFF1B\u82E5\u91CD\u8F7D\u540E\u6807\u7B7E\u9875\u672A\u6062\u590D\uFF0C\u8BF7\u7528\u5B98\u65B9\u63D2\u4EF6\u7BA1\u7406\u5668\u91CD\u65B0\u5B89\u88C5\u672C\u63D2\u4EF6\u3002" });
 var itemGroups = [
   { label: "checking", states: ["checking"] },
   { label: "ready", states: ["ready"] },
-  { label: "updating", states: ["removing", "installing"] },
-  { label: "attention", states: ["check-failed", "failed", "pending-builds", "stale"] },
+  { label: "updating", states: ["removing", "installing", "restoring"] },
+  { label: "attention", states: ["check-failed", "failed", "pending-builds", "stale", "restored"] },
   { label: "updated", states: ["succeeded", "restart-required"] },
   { label: "current", states: ["current"] },
   { label: "blocked", states: ["blocked"] }
@@ -251,6 +258,31 @@ function registerUpdates(ctx) {
   const ns = "dsh-plugin-enhance";
   ctx.effect(() => ctx.locale.register(ns, copy));
   const t = ctx.locale.bind(ns);
+  const bounded = (text, limit) => text.length > limit ? `${text.slice(0, limit / 2)}
+\u2026
+${text.slice(-limit / 2)}` : text;
+  function failureDetails(item, result = item.result, label = "failureDetails") {
+    if (!["failed", "pending-builds", "restored"].includes(item.state)) return null;
+    const diagnostic = result?.error?.diagnostic;
+    const pkg = result?.packageResult;
+    if (!diagnostic && !pkg) return null;
+    const shortened = diagnostic?.length > 2e3 || pkg?.output?.length > 4e3 || pkg?.truncated;
+    return h(
+      "details",
+      { className: "dpe-failure" },
+      h("summary", null, t(label)),
+      diagnostic && h("div", null, h("small", null, t("diagnostic")), h("pre", null, bounded(diagnostic, 2e3))),
+      pkg && h(
+        "div",
+        null,
+        h("small", null, `${pkg.kind ?? ""}${pkg.kind ? " \xB7 " : ""}${t("exitCode")}: ${pkg.exitCode}`),
+        pkg.timedOut && h("p", null, t("timedOut")),
+        pkg.output && h("div", null, h("small", null, t("packageOutput")), h("pre", null, bounded(pkg.output, 4e3))),
+        pkg.logPath && h("small", null, `${t("logPath")}: ${bounded(pkg.logPath, 1e3)}`)
+      ),
+      shortened && h("p", null, t("outputTruncated"))
+    );
+  }
   function Updates() {
     React.useSyncExternalStore((fn) => ctx.locale.subscribe(fn), () => ctx.locale.getSnapshot());
     const [data, setData] = React.useState(null);
@@ -259,6 +291,7 @@ function registerUpdates(ctx) {
     const [working, setWorking] = React.useState(false);
     const [filter, setFilter] = React.useState("all");
     const [query, setQuery] = React.useState("");
+    const [support, setSupport] = React.useState("all");
     const mounted = React.useRef(true);
     async function call(method2, args) {
       const result = await ctx.remote.pluginEnhance[method2](...args === void 0 ? [] : [args]);
@@ -308,18 +341,26 @@ function registerUpdates(ctx) {
     const available = items.filter((item) => item.state === "ready");
     const attention = items.filter((item) => itemGroups.find((group) => group.label === "attention").states.includes(item.state));
     const matches = (item) => `${item.name} ${item.source ?? ""}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
-    const visible = items.filter((item) => matches(item) && (filter === "all" || (filter === "ready" ? item.state === "ready" : attention.includes(item))));
+    const visible = items.filter((item) => matches(item) && (support === "all" || item.support === support) && (filter === "all" || (filter === "ready" ? item.state === "ready" : attention.includes(item))));
     const selectable = visible.filter((item) => item.state === "ready");
     const selected = available.filter((item) => selection2.includes(item.name)).map((item) => item.name);
     const groups = itemGroups.map((group) => ({ ...group, items: visible.filter((item) => group.states.includes(item.state)) })).filter((group) => group.items.length);
     const busy = working || Boolean(data?.busy);
     const stateText = (value) => Object.hasOwn(copy.en, value) ? t(value) : value;
-    const button = (label, action, disabled, primary = false) => h("button", { type: "button", onClick: action, disabled, className: `dpe-button${primary ? " dpe-primary" : ""}` }, t(label));
+    const button = (label, action, disabled, primary = false) => h(import_dsh_client_ui_primitives.Button, { type: "button", size: "sm", variant: primary ? "primary" : "outline", onClick: action, disabled }, t(label));
     return h(
       "section",
       { className: "dpe", "aria-busy": busy },
-      h("style", null, ".dpe{box-sizing:border-box;width:100%;min-width:0;color:var(--dsw-alias-label-primary);padding:20px;margin:0}.dpe-toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}.dpe-button{font:inherit;color:inherit;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:8px 12px;cursor:pointer}.dpe-button:disabled{opacity:.45;cursor:default}.dpe-button:focus-visible,.dpe input:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}.dpe-notice{color:var(--dsw-alias-label-secondary);line-height:1.6}.dpe-scroll{overflow-x:auto}.dpe table{border-collapse:collapse;width:100%;margin-top:16px;font-size:13px}.dpe th,.dpe td{padding:12px 8px;border-bottom:1px solid var(--dsw-alias-border-l1);text-align:left;vertical-align:top}.dpe small{display:block;color:var(--dsw-alias-label-secondary);margin-top:4px}.dpe-error{color:var(--dsw-alias-state-error-primary);white-space:pre-wrap}.dpe pre{white-space:pre-wrap;overflow-wrap:anywhere}"),
-      h("style", null, `.dpe{padding:24px 20px;max-width:1200px;font-size:14px}.dpe h2{margin:0;font-size:22px}.dpe h3{font-size:14px;margin:24px 0 8px}.dpe-header{display:flex;align-items:center;justify-content:space-between;gap:16px}.dpe-notice{margin:18px 0;padding:12px 16px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;font-size:13px}.dpe-notice summary{cursor:pointer}.dpe-filters{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0 12px}.dpe-button[aria-pressed=true]{border-color:var(--dsw-alias-brand-primary,#2563eb);color:var(--dsw-alias-brand-primary,#2563eb);background:color-mix(in srgb,var(--dsw-alias-brand-primary,#2563eb) 9%,transparent)}.dpe .dpe-primary{background:var(--dsw-alias-brand-primary,#2563eb);color:#fff;border-color:transparent}.dpe-search{margin-left:auto;min-width:220px;flex:1;max-width:360px;font:inherit;padding:9px 12px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-1);color:inherit}.dpe-selection{align-items:center;padding:12px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1);position:sticky;top:0;z-index:1}.dpe-selection label{display:flex;gap:8px;align-items:center}.dpe-selection span{color:var(--dsw-alias-label-secondary);margin-right:auto}.dpe input[type=checkbox]{accent-color:var(--dsw-alias-brand-primary,#2563eb);width:16px;height:16px;vertical-align:middle}.dpe-scroll{border:1px solid var(--dsw-alias-border-l1);border-radius:10px}.dpe table{margin:0;min-width:740px}.dpe th{background:var(--dsw-alias-bg-layer-1);font-weight:500;color:var(--dsw-alias-label-secondary)}.dpe th,.dpe td{padding:14px 12px}.dpe td:first-child{width:30%;overflow-wrap:anywhere}.dpe td:nth-child(4){max-width:320px;overflow-wrap:anywhere}.dpe td:last-child{white-space:nowrap}.dpe tr:last-child td{border-bottom:0}.dpe-version{font-variant-numeric:tabular-nums;white-space:nowrap}.dpe-badge{display:inline-block;padding:4px 8px;border-radius:6px;background:var(--dsw-alias-bg-layer-1);white-space:nowrap}.dpe-ready,.dpe-updated{color:var(--dsw-alias-brand-primary,#2563eb);background:color-mix(in srgb,var(--dsw-alias-brand-primary,#2563eb) 10%,transparent)}.dpe-attention{color:var(--dsw-alias-state-error-primary,#b91c1c)}.dpe-empty{padding:40px;text-align:center;color:var(--dsw-alias-label-secondary)}@media(max-width:640px){.dpe{padding:16px 0}.dpe-header{align-items:flex-start;flex-direction:column}.dpe-header .dpe-toolbar{margin:0}.dpe-search{max-width:none;min-width:100%;margin:4px 0}.dpe-selection{position:static}.dpe-selection label{flex-basis:100%}}`),
+      h("style", null, `
+        .dpe{box-sizing:border-box;width:100%;max-width:1056px;min-width:0;margin:0 auto;padding:28px clamp(24px,4vw,48px) 48px;color:var(--dsw-alias-label-primary);font-size:14px;line-height:1.5}
+        .dpe h2{margin:0;font-size:24px;font-weight:600;letter-spacing:-.5px}.dpe h3{font-size:14px;font-weight:600;margin:28px 0 12px}
+        .dpe-header{display:flex;align-items:center;justify-content:space-between;gap:16px}.dpe-toolbar,.dpe-filters,.dpe-support{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.dpe-toolbar{margin:16px 0}.dpe-filters{margin:24px 0 12px}.dpe-support{margin-bottom:16px}
+        .dpe-search{margin-left:auto;min-width:180px;flex:1;max-width:320px}.dpe-notice{margin:20px 0;color:var(--dsw-alias-label-secondary);font-size:13px}.dpe summary{cursor:pointer}.dpe-notice p{line-height:1.7}
+        .dpe-selection{padding:12px 0;border-block:1px solid var(--dsw-alias-border-l1)}.dpe-selection label{display:flex;align-items:center;gap:8px}.dpe-selection>span{margin-right:auto;color:var(--dsw-alias-label-secondary)}.dpe input[type=checkbox]{width:16px;height:16px;vertical-align:middle;accent-color:var(--dsw-alias-brand-primary)}
+        .dpe-scroll{overflow-x:auto}.dpe table{border-collapse:collapse;width:100%;font-size:13px}.dpe th,.dpe td{padding:16px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--dsw-alias-border-l1)}.dpe th{font-weight:500;color:var(--dsw-alias-label-secondary)}.dpe td:first-child{min-width:160px;overflow-wrap:anywhere}.dpe td:nth-child(4){max-width:320px;overflow-wrap:anywhere}.dpe td:last-child{white-space:nowrap}.dpe td:last-child button+button{margin-left:8px}
+        .dpe small{display:block;margin:4px 0;color:var(--dsw-alias-label-secondary)}.dpe-version{font-variant-numeric:tabular-nums}.dpe-badge{font-size:12px}.dpe-attention{color:var(--dsw-alias-state-error-primary)}.dpe-empty{padding:40px 0;text-align:center;color:var(--dsw-alias-label-secondary)}.dpe-error{color:var(--dsw-alias-state-error-primary);white-space:pre-wrap}.dpe pre{white-space:pre-wrap;overflow-wrap:anywhere}.dpe-failure{margin-top:8px}.dpe-failure pre{max-height:240px;overflow:auto}.dpe :focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
+        @media(max-width:767px){.dpe{padding:24px 20px 40px}.dpe-header{align-items:flex-start;flex-direction:column;gap:0}.dpe-search{order:-1;flex-basis:100%;max-width:none}.dpe table,.dpe tbody{display:block}.dpe thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}.dpe tr{display:grid;grid-template-columns:1fr auto;padding:12px 0;border-bottom:1px solid var(--dsw-alias-border-l1)}.dpe td{display:block;border:0;padding:4px 0}.dpe td:first-child{min-width:0}.dpe td:nth-child(4){max-width:none;grid-column:1/-1}.dpe td:last-child{grid-column:1/-1}.dpe-selection{position:static}}
+      `),
       h(
         "header",
         { className: "dpe-header" },
@@ -335,8 +376,13 @@ function registerUpdates(ctx) {
       h(
         "div",
         { className: "dpe-filters", role: "group", "aria-label": t("summary") },
-        ...[["all", "allPlugins", items.length], ["ready", "ready", available.length], ["attention", "attention", attention.length]].map(([value, label, count]) => h("button", { key: value, type: "button", className: "dpe-button", "aria-pressed": filter === value, onClick: () => setFilter(value) }, `${t(label)} (${count})`)),
-        h("input", { type: "search", className: "dpe-search", "aria-label": t("search"), placeholder: t("search"), value: query, onChange: (e) => setQuery(e.target.value) })
+        ...[["all", "allPlugins", items.length], ["ready", "ready", available.length], ["attention", "attention", attention.length]].map(([value, label, count]) => h(import_dsh_client_ui_primitives.Button, { key: value, type: "button", size: "sm", variant: filter === value ? "primary" : "outline", "aria-pressed": filter === value, onClick: () => setFilter(value) }, `${t(label)} (${count})`)),
+        h(import_dsh_client_ui_primitives.Input, { type: "search", className: "dpe-search", "aria-label": t("search"), placeholder: t("search"), value: query, onChange: (e) => setQuery(e.target.value) })
+      ),
+      h(
+        "div",
+        { className: "dpe-support", role: "group", "aria-label": t("support") },
+        ...["all", "native", "extended", "unavailable"].map((value) => h(import_dsh_client_ui_primitives.Button, { key: value, type: "button", size: "sm", variant: support === value ? "primary" : "outline", "aria-pressed": support === value, onClick: () => setSupport(value) }, `${t(value === "all" ? "allSupport" : value)} (${value === "all" ? items.length : items.filter((item) => item.support === value).length})`))
       ),
       h(
         "div",
@@ -355,9 +401,10 @@ function registerUpdates(ctx) {
       ),
       h("div", { role: "status", "aria-live": "polite" }, busy ? t(data?.run ? "busy" : "checking") : !data && !error ? t("loading") : ""),
       error && h("p", { className: "dpe-error", role: "alert" }, error),
-      !items.length ? h("p", { className: "dpe-empty" }, t(busy || !data ? "loading" : data.checkedAt ? "none" : "notChecked")) : !groups.length ? h("div", { className: "dpe-empty" }, h("p", null, t(query.trim() ? "noMatch" : filter === "attention" ? "noAttention" : "noAvailable")), button("clear", () => {
+      !items.length ? h("p", { className: "dpe-empty" }, t(busy || !data ? "loading" : data.checkedAt ? "none" : "notChecked")) : !groups.length ? h("div", { className: "dpe-empty" }, h("p", null, t(query.trim() || support !== "all" ? "noMatch" : filter === "attention" ? "noAttention" : "noAvailable")), button("clear", () => {
         setQuery("");
         setFilter("all");
+        setSupport("all");
       }, false)) : groups.map((group) => h(
         "section",
         { key: group.label, "aria-label": t(group.label) },
@@ -369,10 +416,10 @@ function registerUpdates(ctx) {
           h("tbody", null, group.items.map((item) => h(
             "tr",
             { key: item.name },
-            h("td", null, h("label", null, h("input", { type: "checkbox", "aria-label": item.name, disabled: busy || item.state !== "ready", checked: selection2.includes(item.name), onChange: (e) => setSelection((values) => e.target.checked ? [...values, item.name] : values.filter((value) => value !== item.name)) }), " ", item.name), h("small", null, t(item.enabled ? "enabled" : "disabled"))),
+            h("td", null, h("label", null, h("input", { type: "checkbox", "aria-label": item.name, disabled: busy || item.state !== "ready", checked: selection2.includes(item.name), onChange: (e) => setSelection((values) => e.target.checked ? [...values, item.name] : values.filter((value) => value !== item.name)) }), " ", item.name), h("small", null, t(item.enabled ? "enabled" : "disabled")), h(import_dsh_client_ui_primitives.Tag, { tone: "neutral" }, t(item.support))),
             h("td", { className: "dpe-version" }, item.currentVersion ?? "\u2014", item.target && h("small", null, `\u2192 ${item.target.version}`)),
             h("td", null, h("span", { className: `dpe-badge dpe-${group.label}` }, stateText(item.state))),
-            h("td", null, item.reason && stateText(item.reason), item.state === "pending-builds" && h("p", null, t("pending")), h("small", null, item.source)),
+            h("td", null, item.reason && stateText(item.reason), item.result?.packageResult?.kind === "build-blocked" ? h("p", null, t("buildBlocked"), !item.result.pendingBuilds?.length && h("span", null, " ", t("missingBuildList"))) : item.state === "pending-builds" && h("p", null, t("pending")), failureDetails(item), item.restoreResult && failureDetails(item, item.restoreResult, "restoreDetails"), h("small", null, item.source)),
             h(
               "td",
               null,
@@ -382,7 +429,7 @@ function registerUpdates(ctx) {
           )))
         ))
       )),
-      data?.marketErrors?.map((entry) => h("p", { key: entry.url, className: "dpe-error", role: "alert" }, `${entry.url}: ${entry.message}`))
+      data?.marketErrors?.map((entry, index) => h("p", { key: `${entry.url}:${index}`, className: "dpe-error", role: "alert" }, entry.url ? `${entry.url}: ${entry.message}` : entry.message))
     );
   }
   ctx.slots.inject("plugins.tab", () => ctx.slots.register({ name: "plugins.tab", id: "dsh-plugin-enhance-updates", order: 30, label: () => t("tab") }, Updates));
