@@ -94,7 +94,11 @@ test('update tab registers localized UI, selects only ready bundles and forwards
   await new Promise(resolve => setImmediate(resolve));
   let nodes = flatten(render());
   const button = text => nodes.find(node => node.type === 'button' && node.children.includes(text));
-  const filter = label => nodes.find(node => node.type === 'button' && node.children.some(child => typeof child === 'string' && child.startsWith(label + ' (')));
+  const filter = label => {
+    const option = nodes.find(node => node.type === 'option' && node.children[0].startsWith(label + ' ('));
+    if (option) return { props: { onClick: () => nodes.find(node => node.type === 'select').props.onChange({ target: { value: option.props.value } }) } };
+    return nodes.find(node => node.type === 'button' && node.children.some(child => typeof child === 'string' && child.startsWith(label + ' (')));
+  };
   const search = () => nodes.find(node => node.type === 'input' && node.props.type === 'search');
   const headings = () => nodes.filter(node => node.type === 'h3').map(node => node.children[0]);
   assert.equal(button('Update selected').props.disabled, true);
@@ -104,7 +108,7 @@ test('update tab registers localized UI, selects only ready bundles and forwards
   assert.equal(search().props['aria-label'], dictionaries.en.search);
   assert.ok(nodes.some(node => node.props.role === 'alert' && node.children.includes('Native registry query failed')));
   assert.ok(!nodes.some(node => node.children.includes('null: Native registry query failed')));
-  const failure = nodes.find(node => node.type === 'tr' && flatten(node).some(child => child.props['aria-label'] === 'failed'));
+  const failure = nodes.find(node => node.type === 'article' && flatten(node).some(child => child.props['aria-label'] === 'failed'));
   const failureNodes = flatten(failure);
   const diagnostics = failureNodes.filter(node => node.type === 'pre').map(node => node.children.join(''));
   assert.equal(diagnostics.length, 2);
@@ -131,7 +135,7 @@ test('update tab registers localized UI, selects only ready bundles and forwards
   const rowNames = tree => flatten(tree).filter(node => node.type === 'input' && node.props.type === 'checkbox' && node.props['aria-label'] !== 'Select visible updates').map(node => node.props['aria-label']);
   assert.deepEqual(initial.items.slice(0, 5).map(item => item.name), ['plugin-10', 'zeta', 'plugin-2', 'available', 'Alpha']);
   assert.deepEqual(headings(), ['Update available (5)', 'Updating (3)', 'Needs attention (5)', 'Updated (2)', 'Up to date (1)', 'Unavailable (1)']);
-  assert.deepEqual(nodes.filter(node => node.type === 'table').map(rowNames), [
+  assert.deepEqual(nodes.filter(node => node.props.role === 'list').map(rowNames), [
     ['Alpha', 'available', 'plugin-2', 'plugin-10', 'zeta'],
     ['installing', 'removing', 'restoring'],
     ['check-failed', 'failed', 'pending-builds', 'restored', 'stale'],
@@ -142,7 +146,7 @@ test('update tab registers localized UI, selects only ready bundles and forwards
   assert.ok(nodes.some(node => node.type === 'mark' && node.children.includes('Native support') && node.props.tone === 'neutral'));
   assert.ok(nodes.some(node => node.type === 'mark' && node.children.includes('Extended support')));
   assert.ok(nodes.some(node => node.children.includes('Update failed; previous version restored')));
-  const restoredRow = nodes.find(node => node.type === 'tr' && flatten(node).some(child => child.props['aria-label'] === 'restored'));
+  const restoredRow = nodes.find(node => node.type === 'article' && flatten(node).some(child => child.props['aria-label'] === 'restored'));
   assert.ok(flatten(restoredRow).some(node => node.type === 'pre' && node.children.includes('Target install failed')));
   assert.ok(flatten(restoredRow).some(node => node.type === 'pre' && node.children.includes('Previous version restored')));
   assert.ok(flatten(restoredRow).some(node => node.children.includes('Restore details')));
@@ -165,7 +169,7 @@ test('update tab registers localized UI, selects only ready bundles and forwards
   assert.deepEqual(rowNames(render()), ['protected']);
   filter('All support types').props.onClick();
   nodes = flatten(render());
-  assert.equal(nodes.find(node => node.props['aria-label'] === 'protected').props.disabled, true);
+  assert.equal(nodes.find(node => node.type === 'input' && node.props['aria-label'] === 'protected').props.disabled, true);
   assert.equal(rowNames(render()).length, initial.items.length);
   filter('Update available').props.onClick();
   nodes = flatten(render());
@@ -179,7 +183,14 @@ test('update tab registers localized UI, selects only ready bundles and forwards
   button('Clear filters').props.onClick();
   nodes = flatten(render());
   assert.equal(rowNames(render()).length, initial.items.length);
-  nodes.find(node => node.type === 'input' && node.props['aria-label'] === 'Select visible updates').props.onChange({ target: { checked: true } });
+  nodes.find(node => node.type === 'input' && node.props['aria-label'] === 'Alpha').props.onChange({ target: { checked: true } });
+  nodes = flatten(render());
+  const selectVisible = nodes.find(node => node.props['aria-label'] === 'Select visible updates');
+  const selectionBox = {};
+  selectVisible.props.ref(selectionBox);
+  assert.equal(selectVisible.props.checked, false);
+  assert.equal(selectionBox.indeterminate, true);
+  selectVisible.props.onChange({ target: { checked: true } });
   nodes = flatten(render());
   assert.equal(button('Update selected').props.disabled, false);
   await button('Update selected').props.onClick();
@@ -193,6 +204,8 @@ test('update tab registers localized UI, selects only ready bundles and forwards
   nodes = flatten(render());
   assert.deepEqual(headings(), [`Updated (${initial.items.length})`]);
   assert.ok(nodes.some(node => node.type === 'span' && node.children.includes('Updated')));
+  assert.equal(button('Update selected'), undefined);
+  assert.equal(button('Update all available'), undefined);
   for (const cleanup of effects) cleanup?.();
   for (const cleanup of resources.reverse()) await cleanup?.();
   assert.equal(unmounted, true);

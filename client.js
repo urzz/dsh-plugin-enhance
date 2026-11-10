@@ -348,18 +348,19 @@ ${text.slice(-limit / 2)}` : text;
     const busy = working || Boolean(data?.busy);
     const stateText = (value) => Object.hasOwn(copy.en, value) ? t(value) : value;
     const button = (label, action, disabled, primary = false) => h(import_dsh_client_ui_primitives.Button, { type: "button", size: "sm", variant: primary ? "primary" : "outline", onClick: action, disabled }, t(label));
+    const allSelected = selectable.length > 0 && selectable.every((item) => selected.includes(item.name));
     return h(
       "section",
-      { className: "dpe", "aria-busy": busy },
+      { className: "dpe", "aria-label": t("title"), "aria-busy": busy },
       h("style", null, `
-        .dpe{box-sizing:border-box;width:100%;max-width:1056px;min-width:0;margin:0 auto;padding:28px clamp(24px,4vw,48px) 48px;color:var(--dsw-alias-label-primary);font-size:14px;line-height:1.5}
-        .dpe h2{margin:0;font-size:24px;font-weight:600;letter-spacing:-.5px}.dpe h3{font-size:14px;font-weight:600;margin:28px 0 12px}
-        .dpe-header{display:flex;align-items:center;justify-content:space-between;gap:16px}.dpe-toolbar,.dpe-filters,.dpe-support{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.dpe-toolbar{margin:16px 0}.dpe-filters{margin:24px 0 12px}.dpe-support{margin-bottom:16px}
-        .dpe-search{margin-left:auto;min-width:180px;flex:1;max-width:320px}.dpe-notice{margin:20px 0;color:var(--dsw-alias-label-secondary);font-size:13px}.dpe summary{cursor:pointer}.dpe-notice p{line-height:1.7}
-        .dpe-selection{padding:12px 0;border-block:1px solid var(--dsw-alias-border-l1)}.dpe-selection label{display:flex;align-items:center;gap:8px}.dpe-selection>span{margin-right:auto;color:var(--dsw-alias-label-secondary)}.dpe input[type=checkbox]{width:16px;height:16px;vertical-align:middle;accent-color:var(--dsw-alias-brand-primary)}
-        .dpe-scroll{overflow-x:auto}.dpe table{border-collapse:collapse;width:100%;font-size:13px}.dpe th,.dpe td{padding:16px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--dsw-alias-border-l1)}.dpe th{font-weight:500;color:var(--dsw-alias-label-secondary)}.dpe td:first-child{min-width:160px;overflow-wrap:anywhere}.dpe td:nth-child(4){max-width:320px;overflow-wrap:anywhere}.dpe td:last-child{white-space:nowrap}.dpe td:last-child button+button{margin-left:8px}
-        .dpe small{display:block;margin:4px 0;color:var(--dsw-alias-label-secondary)}.dpe-version{font-variant-numeric:tabular-nums}.dpe-badge{font-size:12px}.dpe-attention{color:var(--dsw-alias-state-error-primary)}.dpe-empty{padding:40px 0;text-align:center;color:var(--dsw-alias-label-secondary)}.dpe-error{color:var(--dsw-alias-state-error-primary);white-space:pre-wrap}.dpe pre{white-space:pre-wrap;overflow-wrap:anywhere}.dpe-failure{margin-top:8px}.dpe-failure pre{max-height:240px;overflow:auto}.dpe :focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
-        @media(max-width:767px){.dpe{padding:24px 20px 40px}.dpe-header{align-items:flex-start;flex-direction:column;gap:0}.dpe-search{order:-1;flex-basis:100%;max-width:none}.dpe table,.dpe tbody{display:block}.dpe thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}.dpe tr{display:grid;grid-template-columns:1fr auto;padding:12px 0;border-bottom:1px solid var(--dsw-alias-border-l1)}.dpe td{display:block;border:0;padding:4px 0}.dpe td:first-child{min-width:0}.dpe td:nth-child(4){max-width:none;grid-column:1/-1}.dpe td:last-child{grid-column:1/-1}.dpe-selection{position:static}}
+        .dpe{box-sizing:border-box;width:100%;min-width:0;display:flex;flex-direction:column;gap:24px;color:var(--dsw-alias-label-primary);font-size:14px;line-height:20px}
+        .dpe h2{margin:0;font-size:20px;line-height:28px;font-weight:500}.dpe h3{font-size:14px;line-height:22px;font-weight:500;margin:0 0 8px}
+        .dpe-header{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:16px}.dpe-toolbar,.dpe-filters{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.dpe-header button{height:32px;padding:0 12px;font-size:13px}.dpe-controls{display:flex;flex-direction:column;gap:12px}.dpe-filters{gap:4px}.dpe-support{height:28px;max-width:100%;margin-left:8px;padding:0 8px;border:1px solid var(--dsw-alias-border-l3);border-radius:var(--dsw-radius-md);background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px}.dpe-filters button[aria-pressed=true]{background:var(--dsw-alias-interactive-bg-active)}.dpe-detail:empty{display:none}
+        .dpe-search{margin-left:auto;min-width:180px;flex:1;max-width:280px}.dpe-notice{color:var(--dsw-alias-label-secondary);font-size:13px}.dpe summary{cursor:pointer}.dpe-notice p{max-width:72ch;line-height:1.7;margin:8px 0 0}
+        .dpe-selection{min-height:32px;gap:12px;font-size:13px}.dpe-selection label{display:flex;align-items:center;gap:6px}.dpe-selection>span{margin-right:auto;color:var(--dsw-alias-label-tertiary)}.dpe input[type=checkbox]{width:16px;height:16px;margin:0;vertical-align:middle;accent-color:var(--dsw-alias-state-business-primary)}
+        .dpe-list{display:flex;flex-direction:column;gap:2px}.dpe-item{display:grid;grid-template-columns:16px minmax(0,1fr) auto;gap:4px 14px;margin:0 -8px;padding:12px 8px;border-radius:var(--dsw-radius-xl)}.dpe-item:hover{background:var(--dsw-alias-interactive-bg-hover)}.dpe-item[data-selected=true]{background:var(--dsw-alias-interactive-bg-active)}.dpe-item>input{margin-top:2px}.dpe-main{min-width:0}.dpe-name{font-size:14px;font-weight:500;overflow-wrap:anywhere}.dpe-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:4px;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px}.dpe-end{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px;max-width:280px}.dpe-detail{grid-column:2/-1;min-width:0;font-size:13px;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere}.dpe-source{overflow-wrap:anywhere}.dpe-version{font-variant-numeric:tabular-nums}.dpe-badge{font-size:12px;color:var(--dsw-alias-label-tertiary)}.dpe-ready{color:var(--dsw-alias-state-business-primary)}.dpe-attention{color:var(--dsw-alias-state-warn-primary)}.dpe-updated{color:var(--dsw-alias-state-success-primary)}
+        .dpe small{display:block;margin-top:4px;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px}.dpe-empty{padding:40px 0;text-align:center;color:var(--dsw-alias-label-secondary)}.dpe-error{margin:0;color:var(--dsw-alias-state-error-primary);white-space:pre-wrap}.dpe pre{white-space:pre-wrap;overflow-wrap:anywhere}.dpe-failure{margin-top:8px}.dpe-failure pre{max-height:240px;overflow:auto;padding:12px;background:var(--dsw-alias-bg-module-platform);border-radius:var(--dsw-radius-md)}.dpe :focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:2px}.dpe-status:empty{display:none}
+        @media(max-width:767px){.dpe-header{flex-direction:column}.dpe-search{order:-1;flex-basis:100%;max-width:none;margin:0 0 8px}.dpe-item{column-gap:10px}.dpe-end{grid-column:2;justify-content:flex-start;max-width:none}.dpe-detail{grid-column:2}.dpe-selection{gap:8px}.dpe-support{margin-left:0}}
       `),
       h(
         "header",
@@ -369,37 +370,43 @@ ${text.slice(-limit / 2)}` : text;
           "div",
           { className: "dpe-toolbar" },
           button("check", () => execute("check"), busy),
-          button("all", () => execute("start", { generation: data.generation, names: available.map((item) => item.name) }), busy || !available.length, true)
+          items.some((item) => item.retryable) && button("retry", () => execute("retry", {}), busy),
+          available.length > 0 && button("all", () => execute("start", { generation: data.generation, names: available.map((item) => item.name) }), busy, true)
         )
       ),
-      h("details", { className: "dpe-notice" }, h("summary", null, t("safety")), h("p", null, t("notice"))),
       h(
         "div",
-        { className: "dpe-filters", role: "group", "aria-label": t("summary") },
-        ...[["all", "allPlugins", items.length], ["ready", "ready", available.length], ["attention", "attention", attention.length]].map(([value, label, count]) => h(import_dsh_client_ui_primitives.Button, { key: value, type: "button", size: "sm", variant: filter === value ? "primary" : "outline", "aria-pressed": filter === value, onClick: () => setFilter(value) }, `${t(label)} (${count})`)),
-        h(import_dsh_client_ui_primitives.Input, { type: "search", className: "dpe-search", "aria-label": t("search"), placeholder: t("search"), value: query, onChange: (e) => setQuery(e.target.value) })
+        { className: "dpe-controls" },
+        h(
+          "div",
+          { className: "dpe-filters", role: "group", "aria-label": t("summary") },
+          ...[["all", "allPlugins", items.length], ["ready", "ready", available.length], ["attention", "attention", attention.length]].map(([value, label, count]) => h(import_dsh_client_ui_primitives.Button, { key: value, type: "button", size: "sm", variant: filter === value ? "toolbar" : "ghost", "aria-pressed": filter === value, onClick: () => setFilter(value) }, `${t(label)} (${count})`)),
+          h(
+            "select",
+            { className: "dpe-support", "aria-label": t("support"), value: support, onChange: (e) => setSupport(e.target.value) },
+            ...["all", "native", "extended", "unavailable"].map((value) => h("option", { key: value, value }, `${t(value === "all" ? "allSupport" : value)} (${value === "all" ? items.length : items.filter((item) => item.support === value).length})`))
+          ),
+          h(import_dsh_client_ui_primitives.Input, { type: "search", className: "dpe-search", "aria-label": t("search"), placeholder: t("search"), value: query, onChange: (e) => setQuery(e.target.value) })
+        )
       ),
-      h(
-        "div",
-        { className: "dpe-support", role: "group", "aria-label": t("support") },
-        ...["all", "native", "extended", "unavailable"].map((value) => h(import_dsh_client_ui_primitives.Button, { key: value, type: "button", size: "sm", variant: support === value ? "primary" : "outline", "aria-pressed": support === value, onClick: () => setSupport(value) }, `${t(value === "all" ? "allSupport" : value)} (${value === "all" ? items.length : items.filter((item) => item.support === value).length})`))
-      ),
-      h(
+      available.length > 0 && h(
         "div",
         { className: "dpe-toolbar dpe-selection" },
         h("label", null, h("input", {
           type: "checkbox",
           "aria-label": t("selectAll"),
-          checked: selectable.length > 0 && selectable.every((item) => selected.includes(item.name)),
+          checked: allSelected,
+          ref: (node) => {
+            if (node) node.indeterminate = !allSelected && selectable.some((item) => selected.includes(item.name));
+          },
           disabled: busy || !selectable.length,
           onChange: (e) => setSelection(e.target.checked ? [.../* @__PURE__ */ new Set([...selected, ...selectable.map((item) => item.name)])] : selected.filter((name) => !selectable.some((item) => item.name === name)))
         }), " ", t("selectAll")),
         h("span", null, `${selected.length} ${t("selectedCount")}`),
         selected.length > 0 && button("deselect", () => setSelection([]), busy),
-        button("selected", () => execute("start", { generation: data.generation, names: selected }), busy || !selected.length, true),
-        items.some((item) => item.retryable) && button("retry", () => execute("retry", {}), busy)
+        button("selected", () => execute("start", { generation: data.generation, names: selected }), busy || !selected.length, true)
       ),
-      h("div", { role: "status", "aria-live": "polite" }, busy ? t(data?.run ? "busy" : "checking") : !data && !error ? t("loading") : ""),
+      h("div", { className: "dpe-status", role: "status", "aria-live": "polite" }, busy ? t(data?.run ? "busy" : "checking") : !data && !error ? t("loading") : ""),
       error && h("p", { className: "dpe-error", role: "alert" }, error),
       !items.length ? h("p", { className: "dpe-empty" }, t(busy || !data ? "loading" : data.checkedAt ? "none" : "notChecked")) : !groups.length ? h("div", { className: "dpe-empty" }, h("p", null, t(query.trim() || support !== "all" ? "noMatch" : filter === "attention" ? "noAttention" : "noAvailable")), button("clear", () => {
         setQuery("");
@@ -409,26 +416,38 @@ ${text.slice(-limit / 2)}` : text;
         "section",
         { key: group.label, "aria-label": t(group.label) },
         h("h3", null, `${t(group.label)} (${group.items.length})`),
-        h("div", { className: "dpe-scroll" }, h(
-          "table",
-          { "aria-label": t(group.label) },
-          h("thead", null, h("tr", null, ...["name", "version", "state", "details", "actions"].map((key) => h("th", { key, scope: "col" }, t(key))))),
-          h("tbody", null, group.items.map((item) => h(
-            "tr",
-            { key: item.name },
-            h("td", null, h("label", null, h("input", { type: "checkbox", "aria-label": item.name, disabled: busy || item.state !== "ready", checked: selection2.includes(item.name), onChange: (e) => setSelection((values) => e.target.checked ? [...values, item.name] : values.filter((value) => value !== item.name)) }), " ", item.name), h("small", null, t(item.enabled ? "enabled" : "disabled")), h(import_dsh_client_ui_primitives.Tag, { tone: "neutral" }, t(item.support))),
-            h("td", { className: "dpe-version" }, item.currentVersion ?? "\u2014", item.target && h("small", null, `\u2192 ${item.target.version}`)),
-            h("td", null, h("span", { className: `dpe-badge dpe-${group.label}` }, stateText(item.state))),
-            h("td", null, item.reason && stateText(item.reason), item.result?.packageResult?.kind === "build-blocked" ? h("p", null, t("buildBlocked"), !item.result.pendingBuilds?.length && h("span", null, " ", t("missingBuildList"))) : item.state === "pending-builds" && h("p", null, t("pending")), failureDetails(item), item.restoreResult && failureDetails(item, item.restoreResult, "restoreDetails"), h("small", null, item.source)),
+        h(
+          "div",
+          { className: "dpe-list", role: "list", "aria-label": t(group.label) },
+          group.items.map((item) => h(
+            "article",
+            { key: item.name, className: "dpe-item", role: "listitem", "aria-label": item.name, "data-selected": selected.includes(item.name) },
+            h("input", { type: "checkbox", "aria-label": item.name, disabled: busy || item.state !== "ready", checked: selected.includes(item.name), onChange: (e) => setSelection((values) => e.target.checked ? [...values, item.name] : values.filter((value) => value !== item.name)) }),
             h(
-              "td",
-              null,
+              "div",
+              { className: "dpe-main" },
+              h("span", { className: "dpe-name" }, item.name),
+              h(
+                "div",
+                { className: "dpe-meta" },
+                h("span", { className: "dpe-version" }, item.currentVersion ?? "\u2014", item.target && ` \u2192 ${item.target.version}`),
+                h("span", null, t(item.enabled ? "enabled" : "disabled")),
+                h(import_dsh_client_ui_primitives.Tag, { tone: "neutral" }, t(item.support))
+              ),
+              item.source && h("small", { className: "dpe-source" }, item.source)
+            ),
+            h(
+              "div",
+              { className: "dpe-end" },
+              h("span", { className: `dpe-badge dpe-${group.label}` }, stateText(item.state)),
               item.state === "ready" && button("update", () => execute("start", { generation: data.generation, names: [item.name] }), busy),
               item.retryable && button("retryOne", () => execute("retry", { names: [item.name] }), busy)
-            )
-          )))
-        ))
+            ),
+            h("div", { className: "dpe-detail" }, item.reason && stateText(item.reason), item.result?.packageResult?.kind === "build-blocked" ? h("p", null, t("buildBlocked"), !item.result.pendingBuilds?.length && h("span", null, " ", t("missingBuildList"))) : item.state === "pending-builds" && h("p", null, t("pending")), failureDetails(item), item.restoreResult && failureDetails(item, item.restoreResult, "restoreDetails"))
+          ))
+        )
       )),
+      h("details", { className: "dpe-notice" }, h("summary", null, t("safety")), h("p", null, t("notice"))),
       data?.marketErrors?.map((entry, index) => h("p", { key: `${entry.url}:${index}`, className: "dpe-error", role: "alert" }, entry.url ? `${entry.url}: ${entry.message}` : entry.message))
     );
   }
