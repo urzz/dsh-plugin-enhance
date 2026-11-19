@@ -1,8 +1,10 @@
 # 插件增强 · Plugin Enhance
 
-完善插件管理体验，让插件的维护与使用更加顺手。
+完善插件管理体验，支持跨工作区查询会话历史。
 
 为 DSH 的插件管理页增加「增强管理」标签页，支持检查更新、勾选批量更新、一键更新全部可更新项，以及重试失败项。优先复用 DSH 原生更新能力，为市场和 GitHub 来源提供扩展支持，包含英文与简体中文界面。
+
+同一 bundle 内还提供独立的「跨工作区会话查询」组件，通过 Agent 工具只读访问其他工作区的会话历史，不恢复或修改目标会话。
 
 包名：`dsh-plugin-enhance` · DSH 兼容范围：`>=0.2.2-rc.1 <0.3.0-0`（开发与测试基准为 `0.2.2-rc.1`）。
 
@@ -72,10 +74,41 @@ GitHub 更新以 `package.json` 的版本号为准，同时要求包名一致、
 
 工具遵守 DSH 的完整访问权限与审批机制，未获授权时不修改 profile。
 
+## 跨工作区会话查询
+
+`session_query_enhance` 查询当前 DSH 实例的原生 `sessionQuery` 可见语料，包括活动会话及持久化的历史会话。省略 `cwd` 时可跨工作区发现会话；指定时按会话头中保存的路径精确匹配，不是目录前缀或模糊匹配。它不会连接其他 DSH 实例或扫描其他 profile 的存储。
+
+| 操作 | 必填参数 | 用途 |
+| --- | --- | --- |
+| `list` | 无 | 按创建时间从新到旧列出会话，返回会话头、标题、活动/持久化状态；可用 `cwd` 筛选。 |
+| `search` | `query` | 跨会话搜索字面短语，每个会话返回最强匹配事件及片段；可用 `cwd` 筛选。 |
+| `search_events` | `session_id`、`query` | 在指定会话中搜索事件。 |
+| `read_event` | `session_id`、`seq` | 读取完整事件；可用 `before`、`after` 各附带 0–10 条完整相邻原始事件，默认不附带。 |
+| `trace_session` | `session_id` | 读取目标会话的已知祖先与后代，包含跨工作区关系。 |
+| `trace_event` | `session_id`、`seq` | 读取事件的替换链、引用来源及派生关系。 |
+
+例如让 Agent 先找出另一个工作区的相关记录，再精确读取命中事件：
+
+```json
+{"action":"list","limit":20}
+{"action":"search","cwd":"/absolute/path/to/another-project","query":"migration"}
+{"action":"read_event","session_id":"<命中的 header.id>","seq":42,"before":1,"after":1}
+```
+
+- `list`、`search` 排除调用者会话；`search_events` 查询调用者自身时排除正在执行工具的这一步。读取其他活动会话时优先采用内存中的最新历史。
+- 三种列表/搜索操作均可设置 `limit`（1–100，默认 20）。`list` 返回 `nextOffset` 时，将其传为下一次的 `offset`；会话新增等并发变化可能使列表页移动。搜索返回 `hasMore: true` 时请缩小查询范围，不暴露跨调用易失效的原生游标。
+- 两种搜索均支持 `seq_from`、`seq_to`、`event_types`、`surfaces`（`current`、`shadowed`、`log-only`）。序号范围包含端点；同一数组内为“或”，各筛选条件间为“且”，空数组匹配零项。省略 `surfaces` 时也会检索被替换和仅保留在原始日志中的事件。
+- 搜索使用原生 SQLite FTS 字面短语匹配，不是正则或任意子串匹配。索引在首次搜索时按需创建于内存中，独立于 DSH 原生工具的索引；卸载组件或重启后重建。索引和冷会话缓存会占用内存，大量历史的首次查询可能较慢。
+- 每次调用都遵守 `danger-full-access`／单次审批机制。未通过检查前不读取会话语料；这项授权仅供本次只读查询使用。查询不会恢复目标会话、启动 Agent 或修改历史文件。
+- 事件正文保持完整，大结果由 DSH 通用 spill 策略（若已启用）处理。历史内容作为数据返回，不应被当作新的指令执行。
+
+组件入口为 `dsh-plugin-enhance/session-query`，在同一 bundle 的独立 `sessionQuery` 作用域内加载，不替换原有 `session_search` 等工具。可单独禁用「跨工作区会话查询」组件；原插件更新功能仍由 `plugin_enhance` 提供。
+
 ## 配置
 
-可在 bundle 配置中覆盖以下字段：
+在对应插件条目的配置中覆盖以下字段：
 
-| 字段 | 默认值 | 说明 |
-| --- | --- | --- |
-| `lookupTimeoutMs` | `20000` | GitHub 元数据查询超时，单位为毫秒。原生版本查询使用官方管理器配置。 |
+| 组件 | 字段 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `dsh-plugin-enhance` | `lookupTimeoutMs` | `20000` | GitHub 元数据查询超时，单位为毫秒。原生版本查询使用官方管理器配置。 |
+| `dsh-plugin-enhance/session-query` | `timeoutMs` | `30000` | 会话查询工具的超时建议值，单位为毫秒；由 DSH 工具执行器的超时策略执行。 |

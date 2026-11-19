@@ -1,7 +1,7 @@
 {
   "name": "dsh-plugin-enhance",
-  "version": "0.1.13",
-  "description": "Improve the plugin management experience, making plugins easier to maintain and use.",
+  "version": "0.1.14",
+  "description": "Improve plugin management and query session history across workspaces.",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -17,6 +17,9 @@
     "./client": "./client.js",
     "./typert": "./typert.host.js",
     "./remote": "./typert.remote-client.js",
+    "./session-query": "./session-query.js",
+    "./session-query/locale/*.json": "./locale/session-query/*.json",
+    "./session-query/icon": "./icon.svg",
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg"
   },
@@ -24,6 +27,8 @@
     "index.js",
     "engine.js",
     "github.js",
+    "session-query.js",
+    "locale/session-query/*.json",
     "client.js",
     "typert.host.js",
     "typert.remote-client.js",
@@ -34,30 +39,38 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "esbuild client.source.js --bundle --preserve-symlinks --platform=browser --format=cjs --external:react --external:zod --external:@deepseek-ai/dsh-client-ui-primitives --banner:js=\"window.__ModuleLoader__.load({id:'dsh-plugin-enhance',factory(require){const module={exports:{}};\" --footer:js=\"return module.exports;}});\" --outfile=client.js && node --check index.js && node --check engine.js && node --check github.js && node --check client.js && node --check typert.host.js && node --check typert.remote-client.js",
+    "build": "esbuild client.source.js --bundle --preserve-symlinks --platform=browser --format=cjs --external:react --external:zod --external:@deepseek-ai/dsh-client-ui-primitives --banner:js=\"window.__ModuleLoader__.load({id:'dsh-plugin-enhance',factory(require){const module={exports:{}};\" --footer:js=\"return module.exports;}});\" --outfile=client.js && node --check index.js && node --check engine.js && node --check github.js && node --check session-query.js && node --check client.js && node --check typert.host.js && node --check typert.remote-client.js",
     "test": "node --test",
     "check": "npm run build && npm test"
   },
   "dependencies": {
+    "execa": "^10.0.1",
     "semver": "^7.7.3",
-    "zod": "^4.4.3",
-    "execa": "^10.0.1"
+    "zod": "^4.4.3"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.1.0",
-    "@deepseek-ai/dsh-typert-protocol": ">=0.2.2-rc.1 <0.3.0-0",
+    "@deepseek-ai/dsh-agent": ">=0.2.2-rc.1 <0.3.0-0",
+    "@deepseek-ai/dsh-app-boot": ">=0.2.2-rc.1 <0.3.0-0",
     "@deepseek-ai/dsh-plugin-manager": ">=0.2.2-rc.1 <0.3.0-0",
     "@deepseek-ai/dsh-plugin-market": ">=0.2.2-rc.1 <0.3.0-0",
-    "@deepseek-ai/dsh-tools": ">=0.2.2-rc.1 <0.3.0-0",
     "@deepseek-ai/dsh-sandbox": ">=0.2.2-rc.1 <0.3.0-0",
     "@deepseek-ai/dsh-sandbox-policy": ">=0.2.2-rc.1 <0.3.0-0",
-    "@deepseek-ai/dsh-app-boot": ">=0.2.2-rc.1 <0.3.0-0",
-    "@deepseek-ai/dsh-subprocess": ">=0.2.2-rc.1 <0.3.0-0"
+    "@deepseek-ai/dsh-session-query": ">=0.2.2-rc.1 <0.3.0-0",
+    "@deepseek-ai/dsh-session-query-sqlite": ">=0.2.2-rc.1 <0.3.0-0",
+    "@deepseek-ai/dsh-subprocess": ">=0.2.2-rc.1 <0.3.0-0",
+    "@deepseek-ai/dsh-tools": ">=0.2.2-rc.1 <0.3.0-0",
+    "@deepseek-ai/dsh-typert-protocol": ">=0.2.2-rc.1 <0.3.0-0"
   },
   "devDependencies": {
+    "@deepseek-ai/cordis-plugin-loader": "1.1.0",
     "@deepseek-ai/dsh-api-gateway": "0.2.2-rc.1",
     "@deepseek-ai/dsh-client-ui-primitives": "0.2.2-rc.1",
-    "esbuild": "0.25.12"
+    "@deepseek-ai/dsh-session": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-session-persistence-jsonl": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-session-query-sqlite": "0.2.2-rc.1",
+    "esbuild": "0.25.12",
+    "yaml": "2.9.1"
   },
   "dsh": {
     "bundle": {
