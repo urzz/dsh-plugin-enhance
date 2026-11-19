@@ -1,0 +1,345 @@
+{
+  "schemaVersion": 2,
+  "workspace": {
+    "kind": "git",
+    "branch": "workspace-batch-archive-migrate",
+    "baseCommit": "26a7c858ec05062b71cb3adeecf6939a98935fd8",
+    "projectPath": ""
+  },
+  "id": "20261119-workspace-management",
+  "title": "工作区内批量归档与目录迁移",
+  "revision": 12,
+  "createdAt": "2026-11-18T16:26:00.298Z",
+  "updatedAt": "2026-11-19T04:12:10.403Z",
+  "documents": {
+    "intent": {
+      "version": 1,
+      "path": "intent.md",
+      "digest": "40ca29f509007c7adca6512c021ef6952b2fa7ba6acb4b2271901cc2070b11f7",
+      "basedOn": {},
+      "reason": "记录用户明确的插件归属、批量归档对象和目录迁移语义"
+    },
+    "spec": {
+      "version": 4,
+      "path": "spec.md",
+      "digest": "c89908a6d345384f3c38faa4f0d4196c79e7005df5c8d031ea57138584a7fbae",
+      "basedOn": {
+        "intent": 1
+      },
+      "reason": "按用户明确新要求取消真实GUI验收，禁止修改本机安装插件"
+    },
+    "plan": {
+      "version": 3,
+      "path": "plan.md",
+      "digest": "829d518128e7778acba929b28f6d52051bdb83e577eeb13f7a47f05d8c545c69",
+      "basedOn": {
+        "intent": 1,
+        "spec": 4
+      },
+      "reason": "按明确用户指令取消GUI后续工作"
+    }
+  },
+  "workflow": {
+    "phase": "done",
+    "status": "active",
+    "reason": "完成工作区批量归档、同bundle原生独立组件启停及UI契约对齐。用户明确取消真实GUI验证，自动化与打包验证完成；迁移保持未解决的排除范围。",
+    "nextAction": "Delivered"
+  },
+  "decisions": [
+    {
+      "id": "intent-confirmed",
+      "kind": "intent-confirmation",
+      "subjects": {
+        "intent": 1
+      },
+      "scope": "当前插件新增工作区多选会话归档和变更目录关联，保留历史，不搬动项目文件",
+      "source": {
+        "quote": "扩展当前插件；正确",
+        "context": "本轮 ask_user_question，scope 和 semantics 两项答案",
+        "recordedBy": "agent"
+      },
+      "recordedAt": "2026-11-18T16:26:34.448Z"
+    },
+    {
+      "id": "archive-review",
+      "kind": "spec-review",
+      "subjects": {
+        "intent": 1,
+        "spec": 2
+      },
+      "scope": "批量归档方案，迁移排除本次交付",
+      "source": {
+        "quote": "确认，同意先实现批量归档，将迁移明确保留为待解决需求.继续",
+        "context": "本轮用户对上轮展示方案的明确确认",
+        "recordedBy": "agent"
+      },
+      "recordedAt": "2026-11-19T03:42:07.677Z"
+    },
+    {
+      "id": "archive-implement",
+      "kind": "implementation-authorization",
+      "subjects": {
+        "intent": 1,
+        "spec": 2
+      },
+      "scope": "实施并验证批量归档",
+      "source": {
+        "quote": "确认，同意先实现批量归档，将迁移明确保留为待解决需求.继续",
+        "context": "本轮用户指令",
+        "recordedBy": "agent"
+      },
+      "recordedAt": "2026-11-19T03:42:07.677Z"
+    },
+    {
+      "id": "review-component-ui",
+      "kind": "spec-review",
+      "subjects": {
+        "intent": 1,
+        "spec": 3
+      },
+      "scope": "独立组件原生开关、生命周期隔离及已展示UI差异修正",
+      "source": {
+        "quote": "全部一起修正吧",
+        "context": "用户针对前两轮UI审查及独立组件/开关缺口与目标行为的答复",
+        "recordedBy": "agent"
+      },
+      "recordedAt": "2026-11-19T03:57:19.884Z"
+    },
+    {
+      "id": "implement-component-ui",
+      "kind": "implementation-authorization",
+      "subjects": {
+        "intent": 1,
+        "spec": 3
+      },
+      "scope": "实现及验证独立组件与UI修正",
+      "source": {
+        "quote": "全部一起修正吧",
+        "context": "本轮用户明确实施指令",
+        "recordedBy": "agent"
+      },
+      "recordedAt": "2026-11-19T03:57:19.884Z"
+    },
+    {
+      "id": "review-no-gui",
+      "kind": "spec-review",
+      "subjects": {
+        "intent": 1,
+        "spec": 4
+      },
+      "scope": "保留既有修正方案，验收仅源码构建自动化打包，不再要求真实GUI",
+      "source": {
+        "quote": "以后插件更新完不要进行真实gui验证了，因为已经禁止直接修改本机的插件了",
+        "context": "用户对本轮验证及以后开发验证范围的明确修订",
+        "recordedBy": "agent"
+      },
+      "recordedAt": "2026-11-19T04:06:11.312Z"
+    },
+    {
+      "id": "implement-no-gui",
+      "kind": "implementation-authorization",
+      "subjects": {
+        "intent": 1,
+        "spec": 4
+      },
+      "scope": "沿用全部一起修正的授权，按取消GUI的新约束完成实现验证",
+      "source": {
+        "quote": "全部一起修正吧",
+        "context": "用户实施授权持续有效，随后明确取消真实GUI验证",
+        "recordedBy": "agent"
+      },
+      "recordedAt": "2026-11-19T04:06:11.312Z"
+    }
+  ],
+  "acceptance": {
+    "specVersion": 4,
+    "items": [
+      {
+        "id": "A1",
+        "anchor": "spec.md#验收草案",
+        "required": true
+      },
+      {
+        "id": "A2",
+        "anchor": "spec.md#验收草案",
+        "required": true
+      },
+      {
+        "id": "A4",
+        "anchor": "spec.md#验收草案",
+        "required": true
+      },
+      {
+        "id": "A5",
+        "anchor": "spec.md#验收草案",
+        "required": true
+      },
+      {
+        "id": "A6",
+        "anchor": "spec.md#验收草案",
+        "required": true
+      }
+    ]
+  },
+  "execution": [
+    {
+      "stepId": "P1",
+      "acceptanceIds": [
+        "A1",
+        "A2",
+        "A4"
+      ],
+      "mode": "direct",
+      "status": "completed"
+    },
+    {
+      "stepId": "P2",
+      "acceptanceIds": [
+        "A1",
+        "A2",
+        "A4"
+      ],
+      "mode": "direct",
+      "status": "completed"
+    },
+    {
+      "stepId": "P3",
+      "acceptanceIds": [
+        "A4"
+      ],
+      "mode": "direct",
+      "status": "completed",
+      "note": "历史预检已完成，用户取消真实GUI后续验收"
+    },
+    {
+      "stepId": "P4",
+      "acceptanceIds": [
+        "A5"
+      ],
+      "mode": "direct",
+      "status": "completed",
+      "note": "同bundle独立原生组件入口及生命周期测试完成"
+    },
+    {
+      "stepId": "P5",
+      "acceptanceIds": [
+        "A1",
+        "A2",
+        "A6"
+      ],
+      "mode": "direct",
+      "status": "completed",
+      "note": "原生Checkbox、工具栏、语义状态样式和长内容布局已修正，5项交互测试通过；Lead已审查公开组件契约，真实视觉仍受认证阻断"
+    },
+    {
+      "stepId": "P6",
+      "acceptanceIds": [
+        "A1",
+        "A2",
+        "A4",
+        "A5",
+        "A6"
+      ],
+      "mode": "direct",
+      "status": "completed",
+      "note": "Lead源码审查、双入口构建、59测试与18文件打包预览通过；遵循用户要求取消GUI"
+    }
+  ],
+  "verification": [
+    {
+      "id": "archive-component-tests",
+      "acceptanceIds": [
+        "A1",
+        "A2"
+      ],
+      "specVersion": 2,
+      "outcome": "passed",
+      "method": "npm run check / VM component scenarios and existing Cordis gateway regression",
+      "subject": "未提交工作分支产物，SHA256 见 verification.md",
+      "environment": "本地 Node.js / esbuild，原生服务 mock；无真实归档",
+      "evidenceRefs": [
+        ".dev-docs/changes/20261119-workspace-management/verification.md",
+        "test/workspace-client.test.js"
+      ],
+      "summary": "构建及55项测试通过；3项新组件测试验证归档选择、结果、重试和边界控制",
+      "recordedAt": "2026-11-19T03:48:42.555Z"
+    },
+    {
+      "id": "gui-auth-blocked",
+      "acceptanceIds": [
+        "A4"
+      ],
+      "specVersion": 2,
+      "outcome": "not-run",
+      "method": "fresh agent browser-validation / bsk",
+      "subject": "https://dsh-dev1.urzz.me/ 未确认本地新产物加载",
+      "environment": "真实浏览器 session wrpp（已清理）",
+      "evidenceRefs": [
+        ".dev-docs/changes/20261119-workspace-management/verification.md"
+      ],
+      "summary": "目标页面要求认证，已登录标签页借用超时；新代码加载及真实交互未验证。构建和测试部分已通过。",
+      "recordedAt": "2026-11-19T03:48:42.555Z"
+    },
+    {
+      "id": "final-spec4",
+      "acceptanceIds": [
+        "A1",
+        "A2",
+        "A4",
+        "A5",
+        "A6"
+      ],
+      "specVersion": 4,
+      "outcome": "passed",
+      "method": "源码契约审查、npm run check、真实Cordis Loader生命周期测试、npm pack --dry-run与git diff --check",
+      "subject": "工作树最终双客户端产物及独立组件manifest，SHA256见verification.md",
+      "environment": "当前worktree，rc.1开发依赖及Cordis Loader 1.1.0；rc.5宿主源码只读核对；不安装profile或执行GUI验证",
+      "evidenceRefs": [
+        ".dev-docs/changes/20261119-workspace-management/verification.md",
+        "test/workspace-client.test.js",
+        "test/workspace-lifecycle.test.js"
+      ],
+      "summary": "59/59测试通过，18文件打包完整。独立启停无更新Remote依赖，停用清理资源及停止后续请求，重新启用全新实例；原生Checkbox与语义样式契约审查通过。保留技术路径显示及版本未全面实测限制。",
+      "recordedAt": "2026-11-19T04:11:56.138Z"
+    }
+  ],
+  "blockers": [
+    {
+      "id": "native-migration-api",
+      "description": "迁移缺少原生支持，保留待解决需求",
+      "status": "resolved",
+      "resolution": "用户明确排除本次交付；不表示迁移能力已解决"
+    },
+    {
+      "id": "gui-verification",
+      "description": "原真实GUI认证与产物加载阻断",
+      "status": "resolved",
+      "resolution": "用户明确取消插件更新后的真实GUI验收；不代表验证通过"
+    }
+  ],
+  "closure": {
+    "delivery": "implementation",
+    "summary": "完成工作区批量归档、同bundle原生独立组件启停及UI契约对齐。用户明确取消真实GUI验证，自动化与打包验证完成；迁移保持未解决的排除范围。",
+    "acceptanceIds": [
+      "A1",
+      "A2",
+      "A4",
+      "A5",
+      "A6"
+    ],
+    "satisfaction": "59项测试通过，含真实Cordis Loader启停/重启与队列中止，双入口产物已生成，发布预览18文件完整。未提交发布或修改已安装插件。",
+    "knowledge": {
+      "status": "updated",
+      "summary": "README记录独立归档使用方式、生命周期和宿主技术路径显示限制；AGENTS记录入口打包及禁止本机修改/GUI验证规则，知识入口路由两者。",
+      "refs": [
+        "README.md",
+        "AGENTS.md",
+        ".dev-docs/index.md"
+      ]
+    },
+    "evidenceRefs": [
+      ".dev-docs/changes/20261119-workspace-management/verification.md"
+    ],
+    "recordedAt": "2026-11-19T04:12:10.403Z"
+  }
+}

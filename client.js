@@ -38,7 +38,7 @@ module.exports = __toCommonJS(client_source_exports);
 // typert.remote-client.js
 var import_zod = require("zod");
 
-// node_modules/@deepseek-ai/dsh-typert-protocol/lib/types/remote-info.js
+// ../../../node_modules/@deepseek-ai/dsh-typert-protocol/lib/types/remote-info.js
 function createTypertRemoteInfo(spec, zod) {
   return new RemoteInfo(spec, zod);
 }

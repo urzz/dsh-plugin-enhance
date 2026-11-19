@@ -2,3 +2,6 @@
     - id: dsh-plugin-enhance
       name: dsh-plugin-enhance
       config: {}
+    - id: dsh-plugin-enhance-workspace-archive
+      name: ./workspace-archive/index.js
+      config: {}

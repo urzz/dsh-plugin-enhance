@@ -6,6 +6,7 @@
 
 - 使用 Node.js 22 或更新版本。DSH 开发与测试基准为 **0.2.2-rc.1**，运行兼容范围为 `>=0.2.2-rc.1 <0.3.0-0`，以 [package.json](package.json) 为准。`engines.dsh` 与 DSH peerDependencies 保持一致的范围；不要将测试基准误写成精确的运行版本限制。扩大范围前核对所用 API；范围声明不代表已经在所有后续版本上测试。
 - 本仓库独立管理 Git、依赖、构建和发布，不在父仓库或其他插件中默认执行对应操作。
+- 插件更新不进行真实 GUI 验证，禁止为验证直接修改本机已安装插件；通过源码契约、自动化测试和构建打包验证。
 - Host 使用 ESM JavaScript。React、Zod 与公开 UI primitives 由 DSH 客户端提供，不打入客户端 bundle；Cordis peer 与官方保持 `~4.1.0`。
 - 界面包含英文和简体中文；新增或调整用户文案时保持两种语言一致。
 
@@ -17,7 +18,9 @@
 | [index.js](index.js) | Host 服务、原生更新进度事件适配和模型工具。 |
 | [github.js](github.js) | GitHub 来源识别与 Git 元数据查询。 |
 | [client.source.js](client.source.js) | Web 标签页源码；挂载本插件的 Remote 描述，通过子作用域显式注入 `remote.pluginEnhance` 后注册标签页。 |
-| [client.js](client.js) | esbuild 生成的浏览器入口，随仓库及 npm 包发布；修改客户端源码后通过构建更新。 |
+| [client.js](client.js) | esbuild 生成的更新浏览器入口，随仓库及 npm 包发布；修改客户端源码后通过构建更新。 |
+| [workspace-client.js](workspace-client.js) | 批量归档菜单、弹窗与串行队列；注册资源归属 Cordis 生命周期。 |
+| [workspace-archive/package.json](workspace-archive/package.json)、[workspace-archive/index.js](workspace-archive/index.js)、[workspace-archive/client.source.js](workspace-archive/client.source.js) | 同 bundle 内嵌原生组件及独立客户端入口；不单独发布 npm 包，构建生成其 client.js。 |
 | [typert.host.js](typert.host.js)、[typert.remote-client.js](typert.remote-client.js) | Host 与 Client 的 Remote 描述；修改接口时保持两端一致。 |
 | [cordis.patch.yml](cordis.patch.yml)、[package.json](package.json) | bundle 加载与发布入口。 |
 | [test/](test/) | 引擎、GitHub 查询、Cordis/Typert 网关、客户端挂载与交互回归测试。 |
