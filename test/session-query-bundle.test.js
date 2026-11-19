@@ -33,6 +33,14 @@ test('bundle exposes two components and owns the isolated query backend lifecycl
     const close = t.mock.method(SqliteSessionQuery.prototype, 'close');
     const tool = ctx.tools.get('session_query_enhance');
     assert.ok(tool, 'bundle registers the cross-workspace tool');
+    const quickTools = { session_search_enhance: ['query'], session_event_read_enhance: ['session_id', 'seq'] };
+    for (const [name, fields] of Object.entries(quickTools)) {
+      const { parameters } = ctx.tools.schemas().find(schema => schema.name === name);
+      assert.deepEqual(Object.keys(parameters.properties), fields);
+      assert.deepEqual(parameters.required, fields);
+      assert.equal(parameters.additionalProperties, false);
+      assert.equal(ctx.tools.get(name).timeoutMs, 30000);
+    }
     assert.ok(ctx.tools.get('plugin_enhance'), 'existing updater still registers');
     assert.equal(tool.timeoutMs, 30000, 'component config defaults are applied');
     assert.equal(ctx.sessionQuery.config.openAt, 'never', 'the root query service is not replaced');
@@ -50,6 +58,7 @@ test('bundle exposes two components and owns the isolated query backend lifecycl
     await ctx.loader.update('dsh-plugin-enhance-session-query-tool', { disabled: true });
     await ctx.loader.await();
     assert.equal(ctx.tools.get('session_query_enhance'), undefined);
+    for (const name of Object.keys(quickTools)) assert.equal(ctx.tools.get(name), undefined);
     assert.ok(ctx.tools.get('plugin_enhance'), 'disabling query leaves the updater active');
     assert.equal(close.mock.callCount(), 1, 'disabling query closes its internal backend');
     assert.equal(close.mock.calls[0].this.config.openAt, 'first-search', 'only the internal backend is closed');

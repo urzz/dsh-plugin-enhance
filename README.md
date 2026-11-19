@@ -76,7 +76,12 @@ GitHub 更新以 `package.json` 的版本号为准，同时要求包名一致、
 
 ## 跨工作区会话查询
 
-`session_query_enhance` 查询当前 DSH 实例的原生 `sessionQuery` 可见语料，包括活动会话及持久化的历史会话。省略 `cwd` 时可跨工作区发现会话；指定时按会话头中保存的路径精确匹配，不是目录前缀或模糊匹配。它不会连接其他 DSH 实例或扫描其他 profile 的存储。
+跨工作区查找并打开一条历史记录只需两步。两个工具的参数都必填。
+
+1. 调用 `session_search_enhance`，例如 `{"query":"agent-rules"}`。它搜索当前 DSH 实例中其他活动或已持久化的会话，每个命中会话返回一条匹配事件的片段。
+2. 调用 `session_event_read_enhance`，将同一条命中的 `header.id` 传给 `session_id`，将 `bestMatch.seq` 原样传给 `seq`（包括 `0`）。返回值的 `target` 是完整事件。
+
+需要限定工作区、筛选事件、读取相邻事件或追溯关系时，使用 `session_query_enhance`。传入 `action` 和该操作所需的字段。`list` 和 `search` 省略 `cwd` 时查询当前实例可见的所有工作区，指定 `cwd` 时按会话头中的路径精确匹配。
 
 | 操作 | 必填参数 | 用途 |
 | --- | --- | --- |

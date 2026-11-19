@@ -72,7 +72,8 @@ async function fixture(t, { mode = 'danger-full-access', config = {} } = {}) {
   const caller = live('caller', { createdAt: 1000 });
   const agent = { session: caller };
   const execution = { agent, callId: 'session-query-test-call', signal: new AbortController().signal };
-  const execute = (args, overrides = {}) => tool.execute(args, { ...execution, ...overrides });
+  const executeTool = (name, args, overrides = {}) => definitions.get(name).execute(args, { ...execution, name, ...overrides });
+  const execute = (args, overrides) => executeTool(tool.name, args, overrides);
   const call = async (args, overrides) => JSON.parse(await execute(args, overrides));
 
   async function persisted(id, meta, populate, { keepLive = false } = {}) {
@@ -90,7 +91,7 @@ async function fixture(t, { mode = 'danger-full-access', config = {} } = {}) {
     }
     return session;
   }
-  return { ctx, tmp, storageRoot, cwd, otherCwd, caller, agent, tool, policy, policyCalls, boundaries, live, persisted, execute, call };
+  return { ctx, tmp, storageRoot, cwd, otherCwd, caller, agent, tool, policy, policyCalls, boundaries, live, persisted, executeTool, execute, call };
 }
 
 function message(session, text, intent = { surfaceOp: 'append' }) {
@@ -234,6 +235,31 @@ test('six actions read cold history across cwd, trace real replacements/lineage,
   assert.equal(f.tool.timeoutMs, 30000, 'Cordis applied the plugin Config default');
 });
 
+test('a minimal cross-workspace search hit opens the full cold event using only its returned coordinates', async t => {
+  const f = await fixture(t);
+  const text = `agent-rules ${'full event body '.repeat(40)}`;
+  let expected;
+  await f.persisted('other-project', { cwd: f.otherCwd }, session => {
+    message(session, 'an earlier event');
+    expected = message(session, text);
+  });
+  message(f.caller, 'agent-rules');
+
+  const result = JSON.parse(await f.executeTool('session_search_enhance', { query: 'agent-rules' }));
+  assert.deepEqual(ids(result), ['other-project']);
+  const { header, bestMatch } = result.items[0];
+  assert.notEqual(bestMatch.snippet, text);
+  const read = JSON.parse(await f.executeTool('session_event_read_enhance', { session_id: header.id, seq: bestMatch.seq }));
+  assert.deepEqual(read.target, expected);
+  assert.deepEqual(read.before, []);
+  assert.deepEqual(read.after, []);
+  assert.equal(f.ctx.sessions.get(header.id), undefined);
+
+  for (const filter of [{ surfaces: [] }, { event_types: [] }]) {
+    assert.deepEqual(ids(await f.call({ action: 'search', query: 'agent-rules', ...filter })), []);
+  }
+});
+
 test('live state wins over an older JSONL copy for titles, search, exact reads and event traces', async t => {
   const f = await fixture(t, { config: { timeoutMs: 1500 } });
   let old;
@@ -345,6 +371,8 @@ test('every action refuses restricted callers before provider work; approval gra
     { action: 'trace_event', session_id: 'private', seq: 0 },
   ];
   for (const args of actions) await assert.rejects(f.execute(args), /requires approval/);
+  await assert.rejects(f.executeTool('session_search_enhance', { query: 'confidential' }), /requires approval/);
+  await assert.rejects(f.executeTool('session_event_read_enhance', { session_id: 'private', seq: 0 }), /requires approval/);
   assert.deepEqual(calls, []);
   assert.deepEqual(persistenceCalls, []);
 
@@ -447,6 +475,18 @@ test('invalid inputs are rejected before policy resolution or access to history'
       return true;
     });
   }
+  const malformedSearch = { action: 'search', query: 'agent-rules', cwd: '', session_id: '', seq: 0, offset: 0, before: 0, after: 0 };
+  await assert.rejects(f.execute(malformedSearch), error => {
+    assert.equal(error.code, 'INVALID_ARGS');
+    assert.match(error.message, /cwd/);
+    assert.match(error.message, /session_search_enhance/);
+    assert.match(error.message, /filtered search/);
+    return true;
+  });
+  await assert.rejects(f.execute({ action: 'read_event', session_id: 'caller' }), /bestMatch\.seq/);
+  await assert.rejects(f.executeTool('session_search_enhance', { query: 'agent-rules', cwd: f.otherCwd }), /session_query_enhance/);
+  await assert.rejects(f.executeTool('session_search_enhance', { query: 'agent-rules', action: 'list' }), /accepts only query/);
+  await assert.rejects(f.executeTool('session_event_read_enhance', { session_id: 'caller', seq: 0, before: 1 }), /session_query_enhance/);
   await assert.rejects(f.execute({ action: 'list' }, { agent: undefined }), /agent-bound caller/);
   assert.deepEqual(calls, []);
   assert.deepEqual(f.policyCalls, []);
