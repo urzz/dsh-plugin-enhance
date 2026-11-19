@@ -15,12 +15,12 @@ vm.runInNewContext(outputFiles[0].text, { module, exports: module.exports, requi
 } });
 const plugin = module.exports;
 
-test('bundle patch anchors an independently managed archive Host row beside the patch', async () => {
+test('bundle patch resolves an independently managed archive Host package', async () => {
   const patches = loadOverlayPatches('test', new URL('cordis.patch.yml', root).pathname);
   const rows = patches.flatMap(p => p.insert ?? []);
   assert.equal(rows.length, 2);
   assert.equal(rows[1].id, 'dsh-plugin-enhance-workspace-archive');
-  assert.equal(rows[1].name, new URL('workspace-archive/index.js', root).href);
+  assert.equal(rows[1].name, 'dsh-plugin-enhance-workspace-archive');
   assert.equal(typeof (await import(rows[1].name)).apply, 'function');
 });
 
@@ -44,7 +44,7 @@ test('real Loader disable removes archive resources, stops queued requests and r
   await ctx.plugin(Loader, { baseUrl: root.href });
   const loader = ctx.loader;
   loader.builtins.archive = plugin;
-  const id = await loader.create({ name: 'cordis:archive', config: {} });
+  const id = await loader.create({ id: 'dsh-plugin-enhance-workspace-archive', name: 'cordis:archive', config: {} });
   await loader.await();
   const entry = loader.resolve(id);
   try {

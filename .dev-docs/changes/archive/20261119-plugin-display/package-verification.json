@@ -1,0 +1,38 @@
+{
+  "package": "dsh-plugin-enhance@0.1.15",
+  "size": 1420185,
+  "unpackedSize": 7104235,
+  "files": 1212,
+  "sha512": "sha512-o0G2NC7J/vopj21KI6iqnZI0r9PQfv9TV8Snk4xmUNAX7lEQHOVI0B0r9MEzN/oMSba5VILd39DEkWssVxnMsQ==",
+  "temporaryDirectory": "/tmp/dsh-enhance-install-0LWKIF",
+  "install": {
+    "offline": true,
+    "ignoreScripts": true,
+    "legacyPeerDeps": true,
+    "output": "\nadded 1 package in 3s\n"
+  },
+  "components": [
+    {
+      "name": "dsh-plugin-enhance-updates",
+      "entry": "/tmp/dsh-enhance-install-0LWKIF/consumer/node_modules/dsh-plugin-enhance/node_modules/dsh-plugin-enhance-updates/index.js"
+    },
+    {
+      "name": "dsh-plugin-enhance-workspace-archive",
+      "entry": "/tmp/dsh-enhance-install-0LWKIF/consumer/node_modules/dsh-plugin-enhance/node_modules/dsh-plugin-enhance-workspace-archive/index.js"
+    }
+  ],
+  "runtimeDependencies": [
+    {
+      "name": "semver",
+      "entry": "/tmp/dsh-enhance-install-0LWKIF/consumer/node_modules/dsh-plugin-enhance/node_modules/semver/index.js"
+    },
+    {
+      "name": "zod",
+      "entry": "/tmp/dsh-enhance-install-0LWKIF/consumer/node_modules/dsh-plugin-enhance/node_modules/zod/index.cjs"
+    },
+    {
+      "name": "execa",
+      "entry": "/tmp/dsh-enhance-install-0LWKIF/consumer/node_modules/dsh-plugin-enhance/node_modules/execa/index.js"
+    }
+  ]
+}

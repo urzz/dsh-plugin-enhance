@@ -1,7 +1,7 @@
 - insert:
     - id: dsh-plugin-enhance
-      name: dsh-plugin-enhance
+      name: dsh-plugin-enhance-updates
       config: {}
     - id: dsh-plugin-enhance-workspace-archive
-      name: ./workspace-archive/index.js
+      name: dsh-plugin-enhance-workspace-archive
       config: {}

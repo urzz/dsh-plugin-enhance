@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createUpdateEngine, createUpdateState } from '../engine.js';
+import { createUpdateEngine, createUpdateState } from '../plugin-updates/engine.js';
 
 const bundle = (name, extra = {}) => ({
   name, version: '1.0.0', source: `${name}@^1.0.0`, enabled: true,
@@ -678,7 +678,7 @@ test('self is ready and runs last, preserving other selections in batches and re
 });
 
 test('shared state survives module reload during self removal and uses fresh dependencies afterward', async t => {
-  const reloaded = await import('../engine.js?self-update-reload');
+  const reloaded = await import('../plugin-updates/engine.js?self-update-reload');
   for (const [label, failure, expectedState, expectedReason] of [
     ['success', {}, 'succeeded', null],
     ['failed install', { application: 'failed', error: { code: 'activation-failed' } }, 'failed', 'activation-failed'],

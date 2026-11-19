@@ -8,10 +8,10 @@ import * as gatewayClient from '@deepseek-ai/dsh-api-gateway/client';
 
 // Exercise current client source without writing the release bundle.
 const { outputFiles } = await build({
-  entryPoints: [new URL('../client.source.js', import.meta.url).pathname],
+  entryPoints: [new URL('../plugin-updates/client.source.js', import.meta.url).pathname],
   bundle: true, write: false, platform: 'browser', format: 'cjs',
   external: ['react', 'zod', '@deepseek-ai/dsh-client-ui-primitives'],
-  banner: { js: "window.__ModuleLoader__.load({id:'dsh-plugin-enhance',factory(require){const module={exports:{}};" },
+  banner: { js: "window.__ModuleLoader__.load({id:'dsh-plugin-enhance-updates',factory(require){const module={exports:{}};" },
   footer: { js: 'return module.exports;}});' },
 });
 const source = outputFiles[0].text;

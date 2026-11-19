@@ -127,7 +127,7 @@ export function registerWorkspaceArchive(ctx) {
   ctx.effect(() => ctx.locale.register(NS, messages));
   ctx.effect(() => () => { alive = false; listeners.clear(); });
   ctx.effect(() => ctx.contextMenus.register({ id: 'enhance.workspace.archive', target: 'workspace', order: 200,
-    resolve: ({ workspaceId, displayTitle }) => workspace(workspaceId)?.sessionIds.some(allowed) ? [{ id: 'archive-batch', label: t('title'), run: () => {
+    resolve: ({ workspaceId, displayTitle }) => workspace(workspaceId)?.sessionIds.some(allowed) ? [{ id: 'archive-batch', label: t('title'), icon: { key: 'workspace.archive' }, run: () => {
       if (alive && !state.busy && workspace(workspaceId)) update({ request: { workspaceId, displayTitle }, selected: [], results: {} });
     } }] : [],
   }));

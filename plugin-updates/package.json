@@ -1,0 +1,61 @@
+{
+  "name": "dsh-plugin-enhance-updates",
+  "version": "0.1.15",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "Check for plugin updates, update selected plugins in bulk, and retry failed updates.",
+  "engines": {
+    "node": ">=22",
+    "dsh": ">=0.2.2-rc.1 <0.3.0-0"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./typert": "./typert.host.js",
+    "./remote": "./typert.remote-client.js",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "index.js",
+    "engine.js",
+    "github.js",
+    "client.js",
+    "typert.host.js",
+    "typert.remote-client.js",
+    "locale/*.json"
+  ],
+  "dependencies": {
+    "semver": "^7.7.3",
+    "zod": "^4.4.3",
+    "execa": "^10.0.1"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.1.0",
+    "@deepseek-ai/dsh-typert-protocol": ">=0.2.2-rc.1 <0.3.0-0",
+    "@deepseek-ai/dsh-plugin-manager": ">=0.2.2-rc.1 <0.3.0-0",
+    "@deepseek-ai/dsh-plugin-market": ">=0.2.2-rc.1 <0.3.0-0",
+    "@deepseek-ai/dsh-tools": ">=0.2.2-rc.1 <0.3.0-0",
+    "@deepseek-ai/dsh-sandbox": ">=0.2.2-rc.1 <0.3.0-0",
+    "@deepseek-ai/dsh-sandbox-policy": ">=0.2.2-rc.1 <0.3.0-0",
+    "@deepseek-ai/dsh-app-boot": ">=0.2.2-rc.1 <0.3.0-0",
+    "@deepseek-ai/dsh-subprocess": ">=0.2.2-rc.1 <0.3.0-0"
+  },
+  "dsh": {
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-plugin-manager",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-ui-primitives"
+      ],
+      "external": [
+        "react",
+        "zod",
+        "@deepseek-ai/dsh-client-ui-primitives"
+      ]
+    }
+  }
+}

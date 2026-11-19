@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 import { Context } from '@deepseek-ai/cordis';
 import { remoteMethods } from '@deepseek-ai/dsh-typert-protocol';
 import { TypertGatewayService } from '@deepseek-ai/dsh-api-gateway';
-import { PluginEnhance, registerUpdateTool } from '../index.js';
-import { TYPERT } from '../typert.host.js';
-import { TYPERT_REMOTE } from '../typert.remote-client.js';
+import { Loader } from '@deepseek-ai/cordis-plugin-loader';
+import { composeEntries, loadOverlayPatches } from '@deepseek-ai/dsh-app-boot';
+import { PluginEnhance, registerUpdateTool } from '../plugin-updates/index.js';
+import { TYPERT } from '../plugin-updates/typert.host.js';
+import { TYPERT_REMOTE } from '../plugin-updates/typert.remote-client.js';
 
 const settle = () => new Promise(resolve => setImmediate(resolve));
 function providers(ctx) {
@@ -47,6 +49,48 @@ test('real Cordis service mounts, exposes supported Remote markers, dispatches s
     await host.dispose();
   }
   assert.equal(ctx.get('pluginEnhance'), undefined);
+});
+
+test('native Loader preserves disabled overrides by row ID and toggles component packages independently', async () => {
+  const patches = loadOverlayPatches('test', new URL('../cordis.patch.yml', import.meta.url).pathname);
+  const warnings = [];
+  const rows = composeEntries([patches, [
+    { id: 'dsh-plugin-enhance', disabled: true },
+    { id: 'dsh-plugin-enhance-workspace-archive', disabled: true },
+  ]], message => warnings.push(message));
+  assert.deepEqual(warnings, []);
+  assert.deepEqual(rows.map(({ id, name, disabled }) => ({ id, name, disabled })), [
+    { id: 'dsh-plugin-enhance', name: 'dsh-plugin-enhance-updates', disabled: true },
+    { id: 'dsh-plugin-enhance-workspace-archive', name: 'dsh-plugin-enhance-workspace-archive', disabled: true },
+  ]);
+  const ctx = new Context();
+  providers(ctx);
+  const loader = ctx.plugin(Loader, { baseUrl: new URL('../', import.meta.url).href });
+  await loader;
+  try {
+    for (const row of rows) assert.equal(await ctx.loader.create(row), row.id);
+    await ctx.loader.await();
+    assert.equal(ctx.get('pluginEnhance'), undefined);
+    const updates = ctx.loader.resolve('dsh-plugin-enhance');
+    const archive = ctx.loader.resolve('dsh-plugin-enhance-workspace-archive');
+    assert.equal(updates.disabled, true);
+    assert.equal(archive.disabled, true);
+    await ctx.loader.update(updates.id, { disabled: false });
+    await ctx.loader.await();
+    assert.ok(ctx.get('pluginEnhance'));
+    assert.equal(archive.disabled, true);
+    await ctx.loader.update(updates.id, { disabled: true });
+    await ctx.loader.await();
+    assert.equal(ctx.get('pluginEnhance'), undefined);
+    await ctx.loader.update(archive.id, { disabled: false });
+    await ctx.loader.await();
+    assert.ok(archive.fiber?.uid, 'archive package root must load through the native Loader');
+    assert.equal(updates.disabled, true);
+    assert.equal(ctx.get('pluginEnhance'), undefined);
+  } finally {
+    await loader.dispose();
+    await ctx.fiber.dispose();
+  }
 });
 
 const bundle = (name, version = '1.0.0', enabled = false) => ({ name, version, source: `${name}@${version}`, enabled, installed: true, availability: 'profile', removable: true, updatable: true });

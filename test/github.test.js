@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { execa } from 'execa';
-import { createGithubResolver, parseGithubSource } from '../github.js';
+import { createGithubResolver, parseGithubSource } from '../plugin-updates/github.js';
 
 const manifest = { name: 'local-plugin', version: '1.0.0', dsh: { bundle: 'patch.yml' } };
 

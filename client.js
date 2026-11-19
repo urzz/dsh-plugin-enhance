@@ -27,7 +27,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// client.source.js
+// plugin-updates/client.source.js
 var client_source_exports = {};
 __export(client_source_exports, {
   apply: () => apply,
@@ -35,10 +35,10 @@ __export(client_source_exports, {
 });
 module.exports = __toCommonJS(client_source_exports);
 
-// typert.remote-client.js
+// plugin-updates/typert.remote-client.js
 var import_zod = require("zod");
 
-// ../../../node_modules/@deepseek-ai/dsh-typert-protocol/lib/types/remote-info.js
+// node_modules/@deepseek-ai/dsh-typert-protocol/lib/types/remote-info.js
 function createTypertRemoteInfo(spec, zod) {
   return new RemoteInfo(spec, zod);
 }
@@ -185,7 +185,7 @@ var ResultValue = class {
   }
 };
 
-// typert.remote-client.js
+// plugin-updates/typert.remote-client.js
 var codec = (name, create) => ({
   mode: "strict",
   typeSymbol: `dsh-plugin-enhance#${name}`,
@@ -220,7 +220,7 @@ var TYPERT_REMOTE = createTypertRemoteInfo({
   }
 }, import_zod.z);
 
-// client.source.js
+// plugin-updates/client.source.js
 var React = __toESM(require("react"), 1);
 var import_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
 var h = React.createElement;

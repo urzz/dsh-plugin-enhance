@@ -35,7 +35,7 @@ __export(client_source_exports, {
 });
 module.exports = __toCommonJS(client_source_exports);
 
-// workspace-client.js
+// workspace-archive/workspace-client.js
 var import_react = __toESM(require("react"), 1);
 var import_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
 var h = import_react.default.createElement;
@@ -203,7 +203,7 @@ function registerWorkspaceArchive(ctx) {
     id: "enhance.workspace.archive",
     target: "workspace",
     order: 200,
-    resolve: ({ workspaceId, displayTitle }) => workspace(workspaceId)?.sessionIds.some(allowed) ? [{ id: "archive-batch", label: t("title"), run: () => {
+    resolve: ({ workspaceId, displayTitle }) => workspace(workspaceId)?.sessionIds.some(allowed) ? [{ id: "archive-batch", label: t("title"), icon: { key: "workspace.archive" }, run: () => {
       if (alive && !state.busy && workspace(workspaceId)) update({ request: { workspaceId, displayTitle }, selected: [], results: {} });
     } }] : []
   }));

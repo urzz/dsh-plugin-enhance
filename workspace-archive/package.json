@@ -2,7 +2,7 @@
   "name": "dsh-plugin-enhance-workspace-archive",
   "private": true,
   "type": "module",
-  "description": "Archive workspace sessions in bulk.",
+  "description": "Select and archive sessions within a workspace, with individual results.",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
@@ -11,8 +11,28 @@
   "dsh": {
     "client": {
       "platform": "web",
-      "inject": ["@deepseek-ai/dsh-client-ui-workspace", "@deepseek-ai/dsh-client-ui-context-menu", "@deepseek-ai/dsh-api-remote-access", "@deepseek-ai/dsh-client-locale", "@deepseek-ai/dsh-client-ui-primitives"],
-      "external": ["react", "@deepseek-ai/dsh-client-ui-primitives"]
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-workspace",
+        "@deepseek-ai/dsh-client-ui-context-menu",
+        "@deepseek-ai/dsh-api-remote-access",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-primitives"
+      ],
+      "external": [
+        "react",
+        "@deepseek-ai/dsh-client-ui-primitives"
+      ]
     }
-  }
+  },
+  "version": "0.1.15",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22",
+    "dsh": ">=0.2.2-rc.1 <0.3.0-0"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "locale/*.json"
+  ]
 }

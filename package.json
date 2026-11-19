@@ -1,7 +1,7 @@
 {
   "name": "dsh-plugin-enhance",
-  "version": "0.1.14",
-  "description": "Improve the plugin management experience, making plugins easier to maintain and use.",
+  "version": "0.1.15",
+  "description": "Manage plugin updates and archive workspace sessions in bulk.",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -22,8 +22,6 @@
   },
   "files": [
     "index.js",
-    "engine.js",
-    "github.js",
     "client.js",
     "typert.host.js",
     "typert.remote-client.js",
@@ -31,21 +29,16 @@
     "locale/*.json",
     "icon.svg",
     "README.md",
-    "LICENSE",
-    "workspace-archive/package.json",
-    "workspace-archive/index.js",
-    "workspace-archive/client.js",
-    "workspace-archive/locale/*.json"
+    "LICENSE"
   ],
   "scripts": {
-    "build": "esbuild client.source.js --bundle --preserve-symlinks --platform=browser --format=cjs --external:react --external:zod --external:@deepseek-ai/dsh-client-ui-primitives --banner:js=\"window.__ModuleLoader__.load({id:'dsh-plugin-enhance',factory(require){const module={exports:{}};\" --footer:js=\"return module.exports;}});\" --outfile=client.js && node --check index.js && node --check engine.js && node --check github.js && node --check client.js && node --check typert.host.js && node --check typert.remote-client.js && esbuild workspace-archive/client.source.js --bundle --preserve-symlinks --platform=browser --format=cjs --external:react --external:zod --external:@deepseek-ai/dsh-client-ui-primitives --banner:js=\"window.__ModuleLoader__.load({id:'dsh-plugin-enhance-workspace-archive',factory(require){const module={exports:{}};\" --footer:js=\"return module.exports;}});\" --outfile=workspace-archive/client.js && node --check workspace-archive/index.js && node --check workspace-archive/client.js",
+    "build": "node build.js",
     "test": "node --test",
     "check": "npm run build && npm test"
   },
   "dependencies": {
-    "semver": "^7.7.3",
-    "zod": "^4.4.3",
-    "execa": "^10.0.1"
+    "dsh-plugin-enhance-updates": "file:./plugin-updates",
+    "dsh-plugin-enhance-workspace-archive": "file:./workspace-archive"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.1.0",
@@ -83,5 +76,9 @@
         "@deepseek-ai/dsh-client-ui-primitives"
       ]
     }
-  }
+  },
+  "bundledDependencies": [
+    "dsh-plugin-enhance-updates",
+    "dsh-plugin-enhance-workspace-archive"
+  ]
 }

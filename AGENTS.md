@@ -14,14 +14,15 @@
 
 | 文件 | 职责 |
 | --- | --- |
-| [engine.js](engine.js) | 来源发现、兼容性判断、更新队列与失败重试。 |
-| [index.js](index.js) | Host 服务、原生更新进度事件适配和模型工具。 |
-| [github.js](github.js) | GitHub 来源识别与 Git 元数据查询。 |
-| [client.source.js](client.source.js) | Web 标签页源码；挂载本插件的 Remote 描述，通过子作用域显式注入 `remote.pluginEnhance` 后注册标签页。 |
-| [client.js](client.js) | esbuild 生成的更新浏览器入口，随仓库及 npm 包发布；修改客户端源码后通过构建更新。 |
-| [workspace-client.js](workspace-client.js) | 批量归档菜单、弹窗与串行队列；注册资源归属 Cordis 生命周期。 |
-| [workspace-archive/package.json](workspace-archive/package.json)、[workspace-archive/index.js](workspace-archive/index.js)、[workspace-archive/client.source.js](workspace-archive/client.source.js) | 同 bundle 内嵌原生组件及独立客户端入口；不单独发布 npm 包，构建生成其 client.js。 |
-| [typert.host.js](typert.host.js)、[typert.remote-client.js](typert.remote-client.js) | Host 与 Client 的 Remote 描述；修改接口时保持两端一致。 |
+| [plugin-updates/engine.js](plugin-updates/engine.js) | 来源发现、兼容性判断、更新队列与失败重试。 |
+| [plugin-updates/index.js](plugin-updates/index.js) | Host 服务、原生更新进度事件适配和模型工具；自身更新单位仍为根 bundle。 |
+| [plugin-updates/github.js](plugin-updates/github.js) | GitHub 来源识别与 Git 元数据查询。 |
+| [plugin-updates/client.source.js](plugin-updates/client.source.js) | Web 标签页源码；挂载本插件的 Remote 描述，通过子作用域显式注入 `remote.pluginEnhance` 后注册标签页。 |
+| [build.js](build.js) | esbuild 构建两个组件 client.js 与根包兼容 client.js；生成入口随仓库及 npm 包发布。 |
+| [workspace-archive/workspace-client.js](workspace-archive/workspace-client.js) | 批量归档菜单、弹窗与串行队列；注册资源归属 Cordis 生命周期。 |
+| [plugin-updates/package.json](plugin-updates/package.json)、[workspace-archive/package.json](workspace-archive/package.json) | 同 bundle 内嵌私有组件包；声明各自入口、语言包和运行依赖，不单独发布 npm 包。 |
+| [plugin-updates/typert.host.js](plugin-updates/typert.host.js)、[plugin-updates/typert.remote-client.js](plugin-updates/typert.remote-client.js) | Host 与 Client 的 Remote 描述；修改接口时保持两端一致。 |
+| [index.js](index.js)、[typert.host.js](typert.host.js)、[typert.remote-client.js](typert.remote-client.js) | 原有根导出的兼容转发。 |
 | [cordis.patch.yml](cordis.patch.yml)、[package.json](package.json) | bundle 加载与发布入口。 |
 | [test/](test/) | 引擎、GitHub 查询、Cordis/Typert 网关、客户端挂载与交互回归测试。 |
 
@@ -51,7 +52,8 @@ npm pack --dry-run
 - `npm test` 运行 Node.js 测试；`npm run check` 依次构建和测试。完整测试需要清单中的 DSH peer 与开发依赖可解析。
 - 测试使用假包管理器，不真实安装或卸载插件。GitHub 查询测试使用本地 Git 仓库，不依赖真实网络。
 - 修改实现后运行相关测试；发布前运行完整构建、测试和打包预览，确认新增运行时模块进入发布清单。
-- 发布清单包含 Host、Client、Remote 描述、bundle patch、语言包、图标及 README。浏览器入口预先构建，安装时不需要 `prepare` 或另行授权构建脚本。
+- 根包通过 `dependencies` 与 `bundledDependencies` 将两个私有组件打入同一个 tgz；组件使用包根入口，使 DSH 原生管理器读取独立名称与描述，并发现对应客户端。组件依赖必须在各自清单中声明，不依赖固定安装层级或提升布局。保留原生 row ID，包名变更时检查手写 `name` 条件的兼容性。
+- 发布清单包含 Host、Client、Remote 描述、bundle patch、语言包、图标及 README。浏览器入口预先构建，安装时不需要 `prepare` 或另行授权构建脚本。根包和两个组件版本同步，打包测试必须从实际 tgz 验证组件解析和元数据。
 
 ## 发布到 npm
 

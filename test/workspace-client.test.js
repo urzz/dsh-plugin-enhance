@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { build } from 'esbuild';
 
-const { outputFiles } = await build({ entryPoints: [new URL('../workspace-client.js', import.meta.url).pathname], bundle: true, write: false, platform: 'browser', format: 'cjs', external: ['react', '@deepseek-ai/dsh-client-ui-primitives'] });
+const { outputFiles } = await build({ entryPoints: [new URL('../workspace-archive/workspace-client.js', import.meta.url).pathname], bundle: true, write: false, platform: 'browser', format: 'cjs', external: ['react', '@deepseek-ai/dsh-client-ui-primitives'] });
 function harness() {
   let Component, menu, dictionaries, language = 'en';
   const disposers = [], calls = [], subscriptions = new Set();
@@ -35,6 +35,9 @@ function harness() {
 test('workspace menu, multilingual selection, partial failure, explicit retry, and native one-argument calls', async () => {
   const ui = harness();
   assert.equal(ui.menu.target, 'workspace');
+  const action = ui.menu.resolve({ workspaceId: 'w', displayTitle: 'Workspace' })[0];
+  assert.equal(action.id, 'archive-batch');
+  assert.equal(action.icon.key, 'workspace.archive');
   assert.equal(ui.menu.resolve({ workspaceId: 'missing' }).length, 0);
   ui.open();
   assert.equal(ui.checkbox('old').props.disabled, true);

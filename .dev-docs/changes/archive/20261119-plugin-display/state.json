@@ -1,0 +1,216 @@
+{
+  "schemaVersion": 2,
+  "workspace": {
+    "kind": "git",
+    "branch": "fix-plugin-display",
+    "baseCommit": "5a6442e8aa7fc1e535560b71367fdf81c984b756",
+    "projectPath": ""
+  },
+  "id": "20261119-plugin-display",
+  "title": "修复插件与组件名称描述及归档菜单图标",
+  "revision": 9,
+  "createdAt": "2026-11-19T04:59:16.336Z",
+  "updatedAt": "2026-11-19T06:19:33.021Z",
+  "documents": {
+    "intent": {
+      "version": 1,
+      "path": "intent.md",
+      "digest": "71a3ab163f9898b3729e7a7502a4d7b697176646f0f6e61b1d97442a70c3b3bf",
+      "basedOn": {},
+      "reason": "记录截图中名称、描述与归档菜单图标的明确修复要求。"
+    },
+    "spec": {
+      "version": 2,
+      "path": "spec.md",
+      "digest": "d806369d19f85ae8df3fc855fa95d4b0156d5159ad2a22b6bfcb993740345824",
+      "basedOn": {
+        "intent": 1
+      },
+      "reason": "将方案文首的待审核状态同步为已经记录的 D2/D3；不改方案或验收语义。"
+    },
+    "plan": {
+      "version": 2,
+      "path": "plan.md",
+      "digest": "df4ef54cd1c7603d588452e185593cc830242a2a656c16c7bce546fedbc9d258",
+      "basedOn": {
+        "intent": 1,
+        "spec": 2
+      },
+      "reason": "明确先归档实现验收记录以纳入单次提交，再由本会话继续执行已授权的 Git/CI 发布；没有取消提交发布要求或改变 spec 验收。"
+    }
+  },
+  "workflow": {
+    "phase": "done",
+    "status": "active",
+    "reason": "完成DSH增强与两个组件的双语名称描述、原生组件包布局和归档菜单图标修复，0.1.15实现验收通过。此关闭仅记录开发交付，随后本会话继续已授权的单次提交、普通推送和CI发布。",
+    "nextAction": "Delivered"
+  },
+  "decisions": [
+    {
+      "id": "D1",
+      "kind": "intent-confirmation",
+      "subjects": {
+        "intent": 1
+      },
+      "scope": "修复插件和组件名称描述及批量归档会话菜单图标",
+      "source": {
+        "quote": "1. 组件名字有问题 2. 插件名字也要调整 3. 批量归档会话前少了图标 这些问题都需要修复一下。另外插件描述和组件描述也调整一下",
+        "context": "2026-11-19 当前会话用户提供两张问题截图并直接要求修复；未指定最终文案。",
+        "recordedBy": "agent"
+      },
+      "recordedAt": "2026-11-19T05:00:40.214Z"
+    },
+    {
+      "id": "D2",
+      "kind": "spec-review",
+      "subjects": {
+        "intent": 1,
+        "spec": 2
+      },
+      "scope": "已展示的中英文名称描述、单发布包内嵌两组件结构、原生归档图标与启停兼容边界",
+      "source": {
+        "quote": "提交，发布一下",
+        "context": "在 Lead 展示完整方案并明确等待确认、补充旧启停兼容边界后，用户直接要求提交与发布，授权依该方案完成实现交付。",
+        "recordedBy": "agent"
+      },
+      "recordedAt": "2026-11-19T05:55:19.809Z"
+    },
+    {
+      "id": "D3",
+      "kind": "implementation-authorization",
+      "subjects": {
+        "intent": 1,
+        "spec": 2
+      },
+      "scope": "完成方案实现、验证、一次提交及下一个补丁版本的既有 CI 发布；不修改已安装插件，不做真实 GUI 验证。",
+      "source": {
+        "quote": "提交，发布一下",
+        "context": "当前顶层用户直接要求提交和发布，包含完成所展示修复所必需的实施工作。",
+        "recordedBy": "agent"
+      },
+      "recordedAt": "2026-11-19T05:55:19.809Z"
+    }
+  ],
+  "acceptance": {
+    "specVersion": 2,
+    "items": [
+      {
+        "id": "A1",
+        "anchor": "spec.md#验收",
+        "required": true
+      },
+      {
+        "id": "A2",
+        "anchor": "spec.md#验收",
+        "required": true
+      },
+      {
+        "id": "A3",
+        "anchor": "spec.md#验收",
+        "required": true
+      },
+      {
+        "id": "A4",
+        "anchor": "spec.md#验收",
+        "required": true
+      },
+      {
+        "id": "A5",
+        "anchor": "spec.md#验收",
+        "required": true
+      }
+    ]
+  },
+  "execution": [
+    {
+      "stepId": "P1",
+      "acceptanceIds": [
+        "A1",
+        "A2",
+        "A3"
+      ],
+      "mode": "direct",
+      "status": "completed",
+      "note": "完成两个内嵌私有组件的迁移、三组双语元数据、原生归档图标、构建与兼容导出、锁文件及文档；首次构建与实际tgz离线安装已通过。"
+    },
+    {
+      "stepId": "P2",
+      "acceptanceIds": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5"
+      ],
+      "mode": "direct",
+      "status": "completed",
+      "note": "clean install 与 npm run check 通过，61/61 tests；实际单tgz离线安装通过，rc.5原生metadata/Host/client发现、无重复根客户端和独立停用通过；Lead完成最终diff审阅。"
+    },
+    {
+      "stepId": "P3",
+      "acceptanceIds": [
+        "A4",
+        "A5"
+      ],
+      "mode": "direct",
+      "status": "completed",
+      "note": "plan v2 的发布准备完成：版本0.1.15全部同步，单次提交范围已审阅，实现证据与长期文档齐备。Git推送和npm发布是归档后的已授权后续操作，尚未声称成功。"
+    }
+  ],
+  "verification": [
+    {
+      "id": "V1",
+      "acceptanceIds": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5"
+      ],
+      "specVersion": 2,
+      "outcome": "passed",
+      "method": "clean npm ci + npm run check；实际npm tgz离线安装；DSH公开createRuntimeResolution/PluginPackages/Loader/ClientModuleRegistry运行检查；最终diff与迁移比对",
+      "subject": "fix-plugin-display工作树的0.1.15实现与实际tgz；制品细节见package-verification.json",
+      "environment": "Node26.13.0/npm11.20.0；完整回归DSH0.2.2-rc.1基准；实际已安装tgz额外通过DSH0.2.2-rc.5原生服务验证；无真实GUI或已安装插件修改",
+      "evidenceRefs": [
+        ".dev-docs/changes/20261119-plugin-display/verification.md",
+        ".dev-docs/changes/20261119-plugin-display/package-verification.json",
+        ".dev-docs/changes/20261119-plugin-display/runtime-verification.json",
+        "test/package.test.js",
+        "test/integration.test.js",
+        "test/workspace-client.test.js",
+        "test/workspace-lifecycle.test.js"
+      ],
+      "summary": "61 tests全部通过，三组双语元数据准确；包根组件及运行依赖自包含；两客户端原生发现、旧id/disabled和独立启停有效；归档菜单有原生图标，兼容导出和功能回归通过。",
+      "recordedAt": "2026-11-19T06:19:20.138Z"
+    }
+  ],
+  "blockers": [],
+  "closure": {
+    "delivery": "implementation",
+    "summary": "完成DSH增强与两个组件的双语名称描述、原生组件包布局和归档菜单图标修复，0.1.15实现验收通过。此关闭仅记录开发交付，随后本会话继续已授权的单次提交、普通推送和CI发布。",
+    "acceptanceIds": [
+      "A1",
+      "A2",
+      "A3",
+      "A4",
+      "A5"
+    ],
+    "satisfaction": "spec v2 A1–A5均有V1有效passed，61项回归通过；实际单tgz离线安装与rc.5原生客户端发现、独立停用验证通过。未进行真实GUI验证或修改本机插件；Git/npm发布结果将在后续会话操作和Actions中记录。",
+    "knowledge": {
+      "status": "updated",
+      "summary": "README说明新名称、独立组件与旧name条件迁移边界；AGENTS记录单tgz内嵌私有组件、原生包根解析和真实tgz测试要求；知识入口已同步。",
+      "refs": [
+        ".dev-docs/index.md",
+        "README.md",
+        "AGENTS.md"
+      ]
+    },
+    "evidenceRefs": [
+      ".dev-docs/changes/20261119-plugin-display/verification.md",
+      ".dev-docs/changes/20261119-plugin-display/package-verification.json",
+      ".dev-docs/changes/20261119-plugin-display/runtime-verification.json"
+    ],
+    "recordedAt": "2026-11-19T06:19:33.021Z"
+  }
+}
