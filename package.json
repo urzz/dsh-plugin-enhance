@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-enhance",
-  "version": "0.1.14",
+  "version": "0.1.16",
   "description": "Improve plugin management and query session history across workspaces.",
   "type": "module",
   "license": "MIT",
