@@ -5,12 +5,11 @@ import { tmpdir } from 'node:os';
 import { join, relative, isAbsolute } from 'node:path';
 import { Context } from '@deepseek-ai/cordis';
 import SessionStore from '@deepseek-ai/dsh-session';
-import SqliteSessionQuery from '@deepseek-ai/dsh-session-query-sqlite';
 import * as JsonlPersistence from '@deepseek-ai/dsh-session-persistence-jsonl';
 import { SessionQueryError } from '@deepseek-ai/dsh-session-query';
 import * as SessionQueryEnhance from '../session-query.js';
 
-// All source logs and the disposable SQLite index live below this test's tmp.
+// Source logs live below this test's tmp; the component owns its in-memory index.
 // Only the tool registry and the agent/policy/approval seams are substitutes.
 async function fixture(t, { mode = 'danger-full-access', config = {} } = {}) {
   const tmp = await mkdtemp(join(tmpdir(), 'session-query-enhance-test-'));
@@ -47,7 +46,6 @@ async function fixture(t, { mode = 'danger-full-access', config = {} } = {}) {
   }
   await mount(SessionStore);
   await mount(JsonlPersistence, { root: storageRoot, compression: 'none' });
-  await mount(SqliteSessionQuery, { path: join(tmp, 'query.sqlite'), snippetChars: 80 });
   ctx.provide('tools', {
     register(definition) {
       assert.equal(definitions.has(definition.name), false);
@@ -190,7 +188,7 @@ test('six actions read cold history across cwd, trace real replacements/lineage,
   const search = await f.call({ action: 'search', query: 'quartz token' });
   assert.deepEqual(new Set(ids(search)), new Set(['root', 'child', 'grandchild']));
   assert.equal(search.hasMore, false);
-  assert.equal(search.items.every(item => [...item.bestMatch.snippet].length <= 80), true);
+  assert.equal(search.items.every(item => [...item.bestMatch.snippet].length <= 240), true);
   assert.deepEqual(new Set(ids(await f.call({ action: 'search', query: 'quartz token', cwd: f.otherCwd }))), new Set(['child', 'grandchild']));
   assert.deepEqual(ids(await f.call({ action: 'search', query: 'quartz OR token' })), [], 'query text is not executable FTS syntax');
 

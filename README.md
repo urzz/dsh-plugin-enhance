@@ -102,7 +102,7 @@ GitHub 更新以 `package.json` 的版本号为准，同时要求包名一致、
 - 每次调用都遵守 `danger-full-access`／单次审批机制。未通过检查前不读取会话语料；这项授权仅供本次只读查询使用。查询不会恢复目标会话、启动 Agent 或修改历史文件。
 - 事件正文保持完整，大结果由 DSH 通用 spill 策略（若已启用）处理。历史内容作为数据返回，不应被当作新的指令执行。
 
-组件入口为 `dsh-plugin-enhance/session-query`，在同一 bundle 的独立 `sessionQuery` 作用域内加载，不替换原有 `session_search` 等工具。可单独禁用「跨工作区会话查询」组件；原插件更新功能仍由 `plugin_enhance` 提供。
+组件列表只显示「插件增强」和「跨工作区会话查询」。查询组件入口为 `dsh-plugin-enhance/session-query`，在同一 bundle 的独立 `sessionQuery` 作用域内加载，并在内部管理原生 SQLite 查询后端。单独禁用「跨工作区会话查询」时，其工具和后端一起释放；重新启用后按需重建索引。原有 `session_search` 等工具和 `plugin_enhance` 插件更新功能不受影响。
 
 ## 配置
 

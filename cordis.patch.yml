@@ -8,11 +8,6 @@
       isolate:
         sessionQuery: true
       config:
-        - id: dsh-plugin-enhance-session-query-backend
-          name: '@deepseek-ai/dsh-session-query-sqlite'
-          config:
-            path: ':memory:'
-            openAt: first-search
         - id: dsh-plugin-enhance-session-query-tool
           name: dsh-plugin-enhance/session-query
           config: {}
