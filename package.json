@@ -1,7 +1,7 @@
 {
   "name": "dsh-plugin-enhance",
-  "version": "0.1.19",
-  "description": "Improve plugin management, batch archive workspace sessions, and query session history across workspaces.",
+  "version": "0.1.20",
+  "description": "Improve plugin management and batch archive workspace sessions.",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -17,9 +17,6 @@
     "./client": "./client.js",
     "./typert": "./typert.host.js",
     "./remote": "./typert.remote-client.js",
-    "./session-query": "./session-query.js",
-    "./session-query/locale/*.json": "./locale/session-query/*.json",
-    "./session-query/icon": "./icon.svg",
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg"
   },
@@ -27,12 +24,10 @@
     "index.js",
     "engine.js",
     "github.js",
-    "session-query.js",
     "workspace-archive/package.json",
     "workspace-archive/index.js",
     "workspace-archive/client.js",
     "workspace-archive/locale/*.json",
-    "locale/session-query/*.json",
     "client.js",
     "typert.host.js",
     "typert.remote-client.js",
@@ -43,7 +38,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "esbuild client.source.js --bundle --preserve-symlinks --platform=browser --format=cjs --external:react --external:zod --external:@deepseek-ai/dsh-client-ui-primitives --banner:js=\"window.__ModuleLoader__.load({id:'dsh-plugin-enhance',factory(require){const module={exports:{}};\" --footer:js=\"return module.exports;}});\" --outfile=client.js && esbuild workspace-archive/client.source.js --bundle --preserve-symlinks --platform=browser --format=cjs --external:react --banner:js=\"window.__ModuleLoader__.load({id:'dsh-plugin-enhance-workspace-archive',factory(require){const module={exports:{}};\" --footer:js=\"return module.exports;}});\" --outfile=workspace-archive/client.js && node --check workspace-archive/index.js && node --check workspace-archive/client.js && node --check index.js && node --check engine.js && node --check github.js && node --check session-query.js && node --check client.js && node --check typert.host.js && node --check typert.remote-client.js",
+    "build": "esbuild client.source.js --bundle --preserve-symlinks --platform=browser --format=cjs --external:react --external:zod --external:@deepseek-ai/dsh-client-ui-primitives --banner:js=\"window.__ModuleLoader__.load({id:'dsh-plugin-enhance',factory(require){const module={exports:{}};\" --footer:js=\"return module.exports;}});\" --outfile=client.js && esbuild workspace-archive/client.source.js --bundle --preserve-symlinks --platform=browser --format=cjs --external:react --banner:js=\"window.__ModuleLoader__.load({id:'dsh-plugin-enhance-workspace-archive',factory(require){const module={exports:{}};\" --footer:js=\"return module.exports;}});\" --outfile=workspace-archive/client.js && node --check workspace-archive/index.js && node --check workspace-archive/client.js && node --check index.js && node --check engine.js && node --check github.js && node --check client.js && node --check typert.host.js && node --check typert.remote-client.js",
     "test": "node --test",
     "check": "npm run build && npm test"
   },
@@ -64,8 +59,6 @@
     "@deepseek-ai/dsh-plugin-market": ">=0.2.2-rc.1 <0.3.0-0",
     "@deepseek-ai/dsh-sandbox": ">=0.2.2-rc.1 <0.3.0-0",
     "@deepseek-ai/dsh-sandbox-policy": ">=0.2.2-rc.1 <0.3.0-0",
-    "@deepseek-ai/dsh-session-query": ">=0.2.2-rc.1 <0.3.0-0",
-    "@deepseek-ai/dsh-session-query-sqlite": ">=0.2.2-rc.1 <0.3.0-0",
     "@deepseek-ai/dsh-subprocess": ">=0.2.2-rc.1 <0.3.0-0",
     "@deepseek-ai/dsh-tools": ">=0.2.2-rc.1 <0.3.0-0",
     "@deepseek-ai/dsh-typert-protocol": ">=0.2.2-rc.1 <0.3.0-0"
@@ -74,9 +67,6 @@
     "@deepseek-ai/cordis-plugin-loader": "1.1.0",
     "@deepseek-ai/dsh-api-gateway": "0.2.2-rc.1",
     "@deepseek-ai/dsh-client-ui-primitives": "0.2.2-rc.1",
-    "@deepseek-ai/dsh-session": "0.2.2-rc.1",
-    "@deepseek-ai/dsh-session-persistence-jsonl": "0.2.2-rc.1",
-    "@deepseek-ai/dsh-session-query-sqlite": "0.2.2-rc.1",
     "esbuild": "0.25.12",
     "yaml": "2.9.1"
   },

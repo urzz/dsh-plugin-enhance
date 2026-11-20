@@ -25,6 +25,8 @@ test('packed archive component resolves native metadata, Host and matching Clien
   execFileSync('tar', ['-xzf', join(temporary, packed.filename), '--strip-components=1', '-C', bundle], { timeout: 30000 });
   const manifest = JSON.parse(await readFile(join(bundle, 'package.json'), 'utf8'));
   assert.deepEqual(manifest.bundledDependencies, [component]);
+  assert.deepEqual(packed.files.filter(file => /session-query/.test(file.path)), [], 'the package contains no migrated query implementation or locale');
+  assert.deepEqual(Object.keys(manifest.exports).filter(key => /session-query/.test(key)), [], 'the package no longer exports the query component');
   assert.deepEqual(await readdir(join(profileDir, 'node_modules')), [bundleName]);
   await writeFile(join(profileDir, 'package.json'), JSON.stringify({ name: 'fixture-profile', private: true, type: 'module', dependencies: { [bundleName]: manifest.version } }));
   const runtime = join(temporary, 'runtime');

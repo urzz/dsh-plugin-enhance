@@ -1,6 +1,6 @@
 # 仓库维护约定
 
-本仓库是独立的 DSH 插件 `dsh-plugin-enhance`，为插件管理页提供增强管理标签页，并通过 `plugin_enhance` 工具复用同一更新引擎；同一 bundle 内还包含可独立开关的工作区批量归档组件和提供跨工作区只读会话查询的 `session_query_enhance` 组件。用户介绍与使用方法见 [README.md](README.md)。开发、验证、打包和发布约定集中在本文件；README 只保留插件介绍与使用说明。
+本仓库是独立的 DSH 插件 `dsh-plugin-enhance`，为插件管理页提供增强管理标签页，并通过 `plugin_enhance` 工具复用同一更新引擎；同一 bundle 内还包含可独立开关的工作区批量归档组件。用户介绍与使用方法见 [README.md](README.md)。开发、验证、打包和发布约定集中在本文件；README 只保留插件介绍与使用说明。
 
 ## 环境与改动范围
 
@@ -16,7 +16,6 @@
 | [engine.js](engine.js) | 来源发现、兼容性判断、更新队列与失败重试。 |
 | [index.js](index.js) | Host 服务、原生更新进度事件适配和模型工具。 |
 | [github.js](github.js) | GitHub 来源识别与 Git 元数据查询。 |
-| [session-query.js](session-query.js) | 跨工作区只读 Agent 查询组件，复用独立作用域内的原生 `sessionQuery`。 |
 | [workspace-archive/workspace-client.js](workspace-archive/workspace-client.js) | 工作区菜单、批量归档弹窗和逐项归档流程。 |
 | [workspace-archive/package.json](workspace-archive/package.json)、[workspace-archive/client.source.js](workspace-archive/client.source.js) | 随主包 bundled 发布的私有组件；独立的 Host 行、客户端入口和启停生命周期。 |
 | [client.source.js](client.source.js) | Web 标签页源码；挂载本插件的 Remote 描述，通过子作用域显式注入 `remote.pluginEnhance` 后注册标签页。 |
@@ -39,8 +38,6 @@
 - 重试队列仅保存在进程内存中，不承诺原子更新或跨进程恢复。扩展路径不提供自动回滚。自身安装失败导致服务未恢复时，使用官方管理器重新安装。
 - 保留模型工具的 DSH 完整访问权限/审批检查，以及网页 Remote 网关的 owner 访问控制。
 - 工作区批量归档保持独立组件及原行 ID；使用 `uiSession.whenAccess` 跟踪会话权限，执行前检查最新工作区归属、归档状态和运行状态，串行调用原生 `workspaces.archiveSession(id)`，不传 `stopActivity`。保留逐项结果，组件卸载后停止发送后续请求。
-- 跨工作区会话查询只通过原生 `sessionQuery` 读取当前实例可见语料；在独立作用域中复用原生 SQLite provider，不解析自定义日志、不恢复或改写目标会话。权限检查必须先于所有语料读取；提供者诊断只写 Host 日志。
-- 会话查询测试使用临时目录中的原生 JSONL persistence 和 SQLite provider，验证跨工作区读取、权限边界、冷会话不激活与持久化内容不变；不得接触真实用户会话。
 
 ## 开发与验证
 

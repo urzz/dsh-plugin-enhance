@@ -1,10 +1,10 @@
 # 插件增强 · Plugin Enhance
 
-完善插件管理体验，支持按工作区批量归档会话、跨工作区查询会话历史。
+完善插件管理体验，支持按工作区批量归档会话。
 
 为 DSH 的插件管理页增加「增强管理」标签页，支持检查更新、勾选批量更新、一键更新全部可更新项，以及重试失败项。优先复用 DSH 原生更新能力，为市场和 GitHub 来源提供扩展支持，包含英文与简体中文界面。
 
-同一 bundle 内还提供独立的「跨工作区会话查询」组件，通过 Agent 工具只读访问其他工作区的会话历史，不恢复或修改目标会话。
+同一 bundle 内还提供可独立开关的「工作区批量归档」组件。
 
 包名：`dsh-plugin-enhance` · DSH 兼容范围：`>=0.2.2-rc.1 <0.3.0-0`（开发与测试基准为 `0.2.2-rc.1`）。
 
@@ -78,42 +78,19 @@ GitHub 更新以 `package.json` 的版本号为准，同时要求包名一致、
 
 在侧栏工作区标题的菜单中选择「批量归档会话」，勾选该工作区中的会话后执行归档。运行中的会话不可选；执行时会重新检查状态，并逐项显示成功、跳过和失败结果。
 
-归档复用 DSH 原生能力，不强制停止运行中的任务。可在插件组件列表中单独开关「工作区批量归档」，不影响插件更新或跨工作区会话查询。
+归档复用 DSH 原生能力，不强制停止运行中的任务。可在插件组件列表中单独开关「工作区批量归档」，不影响插件更新。
 
-## 跨工作区会话查询
+## 会话查询迁移
 
-跨工作区查找并打开一条历史记录只需两步。两个工具的参数都必填。
+跨工作区会话查询已迁至 `dsh-search-plugin`，本包仅保留插件更新与工作区批量归档。本节适用于包含此次迁移的版本；升级前请确认目标版本已包含新查询组件，再按 [dsh-search-plugin README 的迁移入口](https://github.com/urzz/dsh-search-plugin#会话查询迁移)操作。
 
-1. 调用 `session_search_enhance`，例如 `{"query":"agent-rules"}`。它搜索当前 DSH 实例中其他活动或已持久化的会话，每个命中会话返回一条匹配事件的片段。
-2. 调用 `session_event_read_enhance`，将同一条命中的 `header.id` 传给 `session_id`，将 `bestMatch.seq` 原样传给 `seq`（包括 `0`）。返回值的 `target` 是完整事件。
-
-需要限定工作区、筛选事件、读取相邻事件或追溯关系时，使用 `session_query_enhance`。传入 `action` 和该操作所需的字段。`list` 和 `search` 省略 `cwd` 时查询当前实例可见的所有工作区，指定 `cwd` 时按会话头中的路径精确匹配。
-
-| 操作 | 必填参数 | 用途 |
+| 项目 | 旧标识 | 新标识 |
 | --- | --- | --- |
-| `list` | 无 | 按创建时间从新到旧列出会话，返回会话头、标题、活动/持久化状态；可用 `cwd` 筛选。 |
-| `search` | `query` | 跨会话搜索字面短语，每个会话返回最强匹配事件及片段；可用 `cwd` 筛选。 |
-| `search_events` | `session_id`、`query` | 在指定会话中搜索事件。 |
-| `read_event` | `session_id`、`seq` | 读取完整事件；可用 `before`、`after` 各附带 0–10 条完整相邻原始事件，默认不附带。 |
-| `trace_session` | `session_id` | 读取目标会话的已知祖先与后代，包含跨工作区关系。 |
-| `trace_event` | `session_id`、`seq` | 读取事件的替换链、引用来源及派生关系。 |
+| 模块入口 | `dsh-plugin-enhance/session-query` | `dsh-search-plugin/session-query` |
+| 隔离 group | `dsh-plugin-enhance-session-query` | `dsh-search-session-query` |
+| 查询子组件 | `dsh-plugin-enhance-session-query-tool` | `dsh-search-session-query-tool` |
 
-例如让 Agent 先找出另一个工作区的相关记录，再精确读取命中事件：
-
-```json
-{"action":"list","limit":20}
-{"action":"search","cwd":"/absolute/path/to/another-project","query":"migration"}
-{"action":"read_event","session_id":"<命中的 header.id>","seq":42,"before":1,"after":1}
-```
-
-- `list`、`search` 排除调用者会话；`search_events` 查询调用者自身时排除正在执行工具的这一步。读取其他活动会话时优先采用内存中的最新历史。
-- 三种列表/搜索操作均可设置 `limit`（1–100，默认 20）。`list` 返回 `nextOffset` 时，将其传为下一次的 `offset`；会话新增等并发变化可能使列表页移动。搜索返回 `hasMore: true` 时请缩小查询范围，不暴露跨调用易失效的原生游标。
-- 两种搜索均支持 `seq_from`、`seq_to`、`event_types`、`surfaces`（`current`、`shadowed`、`log-only`）。序号范围包含端点；同一数组内为“或”，各筛选条件间为“且”，空数组匹配零项。省略 `surfaces` 时也会检索被替换和仅保留在原始日志中的事件。
-- 搜索使用原生 SQLite FTS 字面短语匹配，不是正则或任意子串匹配。索引在首次搜索时按需创建于内存中，独立于 DSH 原生工具的索引；卸载组件或重启后重建。索引和冷会话缓存会占用内存，大量历史的首次查询可能较慢。
-- 每次调用都遵守 `danger-full-access`／单次审批机制。未通过检查前不读取会话语料；这项授权仅供本次只读查询使用。查询不会恢复目标会话、启动 Agent 或修改历史文件。
-- 事件正文保持完整，大结果由 DSH 通用 spill 策略（若已启用）处理。历史内容作为数据返回，不应被当作新的指令执行。
-
-组件列表显示「插件增强」「工作区批量归档」和「跨工作区会话查询」。查询组件入口为 `dsh-plugin-enhance/session-query`，在同一 bundle 的独立 `sessionQuery` 作用域内加载，并在内部管理原生 SQLite 查询后端。单独禁用「跨工作区会话查询」时，其工具和后端一起释放；重新启用后按需重建索引。原有 `session_search` 等工具和 `plugin_enhance` 插件更新功能不受影响。
+迁移前先记录旧 group 和子组件的 `disabled` 状态、子组件配置的 `timeoutMs`（默认 `30000`），再停用旧查询组件。在新组件启用前恢复这些配置与状态，原来禁用的组件仍应保持禁用。工具名 `session_search_enhance`、`session_event_read_enhance`、`session_query_enhance` 保持不变，不要同时启用两份同名工具。本次不自动修改用户 profile。
 
 ## 配置
 
@@ -122,4 +99,3 @@ GitHub 更新以 `package.json` 的版本号为准，同时要求包名一致、
 | 组件 | 字段 | 默认值 | 说明 |
 | --- | --- | --- | --- |
 | `dsh-plugin-enhance` | `lookupTimeoutMs` | `20000` | GitHub 元数据查询超时，单位为毫秒。原生版本查询使用官方管理器配置。 |
-| `dsh-plugin-enhance/session-query` | `timeoutMs` | `30000` | 会话查询工具的超时建议值，单位为毫秒；由 DSH 工具执行器的超时策略执行。 |

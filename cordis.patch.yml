@@ -5,12 +5,3 @@
     - id: dsh-plugin-enhance-workspace-archive
       name: dsh-plugin-enhance-workspace-archive
       config: {}
-    - id: dsh-plugin-enhance-session-query
-      name: cordis:group
-      group: true
-      isolate:
-        sessionQuery: true
-      config:
-        - id: dsh-plugin-enhance-session-query-tool
-          name: dsh-plugin-enhance/session-query
-          config: {}
