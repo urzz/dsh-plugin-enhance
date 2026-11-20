@@ -60,7 +60,7 @@ const nativeRelease = (version, extra = {}) => ({ version, bundle: true, prerele
 const versionList = (versions = [nativeRelease('2.0.0')]) => ({
   status: 'listed', installed: '1.0.0', registry: 'https://private.example', versions,
 });
-function nativeFixture(dependencies = {}, initial = [bundle('alpha', { updatable: true, enabled: false })]) {
+function nativeFixture(dependencies = {}, initial = [bundle('alpha', { update: 'registry', enabled: false })]) {
   const f = fixture(initial, dependencies);
   f.manager.listVersions = async () => versionList();
   f.manager.updateBundle = async (name, version, options) => {
@@ -85,6 +85,38 @@ test('native update delegates to the manager and preserves disabled state withou
   assert.equal(typeof f.calls[0][3].requestId, 'string');
   assert.equal((await f.manager.listBundles())[0].enabled, false);
 });
+
+for (const [runtimeVersion, capability] of [
+  ['0.2.2-rc.1', { updatable: true }],
+  ['0.2.2-rc.5', { update: 'registry' }],
+]) {
+  test(`npm bundles without a market entry check, update and retry natively on ${runtimeVersion}`, async () => {
+    const name = '@example/plugin';
+    const f = nativeFixture({ market: undefined, runtimeVersion }, [bundle(name, { ...capability, enabled: false })]);
+    f.manager.listVersions = async requested => {
+      f.calls.push(['versions', requested]);
+      return versionList();
+    };
+    const check = await f.engine.check();
+    assert.equal(check.items[0].support, 'native');
+    assert.equal(check.items[0].state, 'ready');
+    assert.equal(check.items[0].target.origin, 'native');
+    const update = f.manager.updateBundle;
+    f.manager.updateBundle = async () => ({
+      from: '1.0.0', to: '2.0.0', step: 'install',
+      result: outcome({ application: 'failed', error: { code: 'install-failed' } }),
+      restore: outcome({ bundle: name, version: '1.0.0' }),
+    });
+    const failed = await f.engine.start({ generation: check.generation, names: [name] });
+    assert.equal(failed.items[0].state, 'restored');
+    assert.equal(failed.items[0].retryable, true);
+    f.manager.updateBundle = update;
+    assert.equal((await f.engine.retry()).items[0].state, 'succeeded');
+    assert.deepEqual(f.calls.map(call => call.slice(0, 2)), [['versions', name], ['update', name]]);
+    assert.equal(f.calls[1][3].registry, 'https://private.example');
+    assert.equal((await f.manager.listBundles())[0].enabled, false);
+  });
+}
 
 test('native-only checks do not query markets; mixed checks survive market index and search failures', async () => {
   const unusedMarket = {
@@ -310,12 +342,13 @@ test('market refresh paginates with fetchedAt and permits Git targets', async ()
 test('GitHub source checks its repository and installs the resolved target preserving disabled state', async () => {
   const source = 'github:owner/alpha#main';
   const spec = 'git+https://github.com/owner/alpha.git#main';
-  const f = fixture([bundle('alpha', { source, enabled: false })], {
+  const f = fixture([bundle('alpha', { source, enabled: false, update: 'git' })], {
     resolveGithubMetadata: async input => {
       assert.equal(input.source, source);
       return { manifest: manifest('alpha'), spec };
     },
   });
+  f.manager.listVersions = () => assert.fail('Git update capability must not use registry version listing');
   f.manager.installBundle = async (target, options) => {
     f.calls.push(['install', target, options]);
     f.change([bundle('alpha', { source: target, version: '2.0.0', enabled: options.enabled })]);

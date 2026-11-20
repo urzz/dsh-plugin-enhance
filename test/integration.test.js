@@ -49,7 +49,7 @@ test('real Cordis service mounts, exposes supported Remote markers, dispatches s
   assert.equal(ctx.get('pluginEnhance'), undefined);
 });
 
-const bundle = (name, version = '1.0.0', enabled = false) => ({ name, version, source: `${name}@${version}`, enabled, installed: true, availability: 'profile', removable: true, updatable: true });
+const bundle = (name, version = '1.0.0', enabled = false) => ({ name, version, source: `${name}@${version}`, enabled, installed: true, availability: 'profile', removable: true, update: 'registry' });
 const versions = { status: 'listed', installed: '1.0.0', registry: 'https://private.example/', attempts: [], versions: [{ version: '2.0.0', tags: ['latest'], prerelease: false, bundle: true }], omitted: 0 };
 
 test('Host delegates registry checks and updates to the native manager', async () => {

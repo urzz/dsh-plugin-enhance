@@ -2,6 +2,9 @@
     - id: dsh-plugin-enhance
       name: dsh-plugin-enhance
       config: {}
+    - id: dsh-plugin-enhance-workspace-archive
+      name: dsh-plugin-enhance-workspace-archive
+      config: {}
     - id: dsh-plugin-enhance-session-query
       name: cordis:group
       group: true

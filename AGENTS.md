@@ -1,6 +1,6 @@
 # 仓库维护约定
 
-本仓库是独立的 DSH 插件 `dsh-plugin-enhance`，为插件管理页提供增强管理标签页，并通过 `plugin_enhance` 工具复用同一更新引擎；同一 bundle 内的 `session_query_enhance` 组件提供跨工作区只读会话查询。用户介绍与使用方法见 [README.md](README.md)。开发、验证、打包和发布约定集中在本文件；README 只保留插件介绍与使用说明。
+本仓库是独立的 DSH 插件 `dsh-plugin-enhance`，为插件管理页提供增强管理标签页，并通过 `plugin_enhance` 工具复用同一更新引擎；同一 bundle 内还包含可独立开关的工作区批量归档组件和提供跨工作区只读会话查询的 `session_query_enhance` 组件。用户介绍与使用方法见 [README.md](README.md)。开发、验证、打包和发布约定集中在本文件；README 只保留插件介绍与使用说明。
 
 ## 环境与改动范围
 
@@ -17,6 +17,8 @@
 | [index.js](index.js) | Host 服务、原生更新进度事件适配和模型工具。 |
 | [github.js](github.js) | GitHub 来源识别与 Git 元数据查询。 |
 | [session-query.js](session-query.js) | 跨工作区只读 Agent 查询组件，复用独立作用域内的原生 `sessionQuery`。 |
+| [workspace-archive/workspace-client.js](workspace-archive/workspace-client.js) | 工作区菜单、批量归档弹窗和逐项归档流程。 |
+| [workspace-archive/package.json](workspace-archive/package.json)、[workspace-archive/client.source.js](workspace-archive/client.source.js) | 随主包 bundled 发布的私有组件；独立的 Host 行、客户端入口和启停生命周期。 |
 | [client.source.js](client.source.js) | Web 标签页源码；挂载本插件的 Remote 描述，通过子作用域显式注入 `remote.pluginEnhance` 后注册标签页。 |
 | [client.js](client.js) | esbuild 生成的浏览器入口，随仓库及 npm 包发布；修改客户端源码后通过构建更新。 |
 | [typert.host.js](typert.host.js)、[typert.remote-client.js](typert.remote-client.js) | Host 与 Client 的 Remote 描述；修改接口时保持两端一致。 |
@@ -26,7 +28,7 @@
 ## 实现约束
 
 - Web 页面与 `plugin_enhance` 工具复用同一引擎，更新单位为 bundle，保留原启用状态。
-- 原生路径优先：官方管理器 `updatable` 的组合包通过 `listVersions` 与 `updateBundle` 检查和更新，选择最新兼容正式版，沿用其 registry、认证、代理及兼容性策略。原生查询失败不切换扩展路径。
+- 原生路径优先：官方管理器 `update: 'registry'` 的组合包通过 `listVersions` 与 `updateBundle` 检查和更新；兼容开发基准 rc.1 的旧字段 `updatable: true`。`update: 'git'` 不可用于 registry 版本查询，仍按扩展来源规则处理。选择最新兼容正式版，沿用其 registry、认证、代理及兼容性策略；原生查询失败不切换扩展路径。
 - 其余组合包使用扩展路径：市场目标优先，其后为 GitHub；市场查询失败不得静默切换来源。
 - GitHub 元数据查询使用临时 bare 仓库，不执行仓库代码或构建脚本；保留原 ref 以继续跟踪同一分支，支持超时、取消和临时资源清理。
 - 仅选择版本号更高且兼容当前 DSH 的目标；不自动授予版本豁免、构建脚本权限或重启 DSH。
@@ -36,6 +38,7 @@
 - 自身更新排在批次最后，使用官方管理器执行。队列数据挂在生命周期更长的管理器实例上供重载后的新引擎接续；不保存旧服务或查询闭包，不在卸载清理中等待更新批次（会与 HMR 互相等待）。
 - 重试队列仅保存在进程内存中，不承诺原子更新或跨进程恢复。扩展路径不提供自动回滚。自身安装失败导致服务未恢复时，使用官方管理器重新安装。
 - 保留模型工具的 DSH 完整访问权限/审批检查，以及网页 Remote 网关的 owner 访问控制。
+- 工作区批量归档保持独立组件及原行 ID；使用 `uiSession.whenAccess` 跟踪会话权限，执行前检查最新工作区归属、归档状态和运行状态，串行调用原生 `workspaces.archiveSession(id)`，不传 `stopActivity`。保留逐项结果，组件卸载后停止发送后续请求。
 - 跨工作区会话查询只通过原生 `sessionQuery` 读取当前实例可见语料；在独立作用域中复用原生 SQLite provider，不解析自定义日志、不恢复或改写目标会话。权限检查必须先于所有语料读取；提供者诊断只写 Host 日志。
 - 会话查询测试使用临时目录中的原生 JSONL persistence 和 SQLite provider，验证跨工作区读取、权限边界、冷会话不激活与持久化内容不变；不得接触真实用户会话。
 
@@ -47,7 +50,7 @@ npm run check
 npm pack --dry-run
 ```
 
-- `npm run build` 使用 esbuild 打包客户端源码及 Remote 描述，并检查发布入口语法。
+- `npm run build` 使用 esbuild 打包客户端源码及 Remote 描述，同时生成归档组件的 [workspace-archive/client.js](workspace-archive/client.js)，并检查发布入口语法；两个客户端生成文件均随仓库发布。
 - `npm test` 运行 Node.js 测试；`npm run check` 依次构建和测试。完整测试需要清单中的 DSH peer 与开发依赖可解析。
 - 测试使用假包管理器，不真实安装或卸载插件。GitHub 查询测试使用本地 Git 仓库，不依赖真实网络。
 - 修改实现后运行相关测试；发布前运行完整构建、测试和打包预览，确认新增运行时模块进入发布清单。

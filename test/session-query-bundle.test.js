@@ -8,7 +8,7 @@ import SqliteSessionQuery from '@deepseek-ai/dsh-session-query-sqlite';
 import { ToolsService } from '@deepseek-ai/dsh-tools';
 import { parse } from 'yaml';
 
-test('bundle exposes two components and owns the isolated query backend lifecycle', async t => {
+test('bundle exposes three components and owns the isolated query backend lifecycle', async t => {
   const ctx = new Context();
   ctx.provide('systemPrompt', { tools() {} });
   ctx.provide('agents', { turnBoundaryOf: () => ({}) });
@@ -28,8 +28,8 @@ test('bundle exposes two components and owns the isolated query backend lifecycl
     await ctx.loader.root.update(patch[0].insert);
     await ctx.loader.await();
     assert.deepEqual([...ctx.loader.entries()].filter(entry => !entry.options.group).map(entry => entry.options.name), [
-      'dsh-plugin-enhance', 'dsh-plugin-enhance/session-query',
-    ], 'the bundle inventory contains only the two user-facing components');
+      'dsh-plugin-enhance', 'dsh-plugin-enhance-workspace-archive', 'dsh-plugin-enhance/session-query',
+    ], 'the bundle inventory contains the three user-facing components');
     const close = t.mock.method(SqliteSessionQuery.prototype, 'close');
     const tool = ctx.tools.get('session_query_enhance');
     assert.ok(tool, 'bundle registers the cross-workspace tool');

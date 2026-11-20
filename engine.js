@@ -16,6 +16,9 @@ function manifestCompatible(manifest, runtime) {
     return ['workspace:^', 'workspace:~', 'workspace:*'].includes(range) || satisfies(range);
   });
 }
+// DSH replaced updatable with update; rc.1 remains in our supported range.
+const nativeRegistry = bundle => bundle?.update === 'registry'
+  || (bundle?.update === undefined && bundle?.updatable === true);
 const localSource = source => /^(?:file:|link:|workspace:|\/|~|\.{1,2}\/)/.test(source);
 const needsBuildApproval = result => result.pendingBuilds?.length > 0 || result.packageResult?.kind === 'build-blocked';
 const successful = result => !result.error && !needsBuildApproval(result)
@@ -119,7 +122,7 @@ export function createUpdateEngine({
           source: bundle.source ?? null, support: 'unavailable', state: 'blocked', reason: null, target: null, retryable: false,
         };
         state.items.push(item);
-        if (bundle.updatable) {
+        if (nativeRegistry(bundle)) {
           item.support = 'native';
           item.state = 'checking';
           unchecked.push({ bundle, item });
@@ -225,7 +228,7 @@ export function createUpdateEngine({
       // Native update requires an installed, eligible, older version. A failed
       // activation may already have saved the target: that needs native review.
       item.retryable = !['succeeded', 'restart-required'].includes(item.state)
-        && !!after?.updatable && semver.lt(after.version, plan.target.version);
+        && nativeRegistry(after) && semver.lt(after.version, plan.target.version);
     }
   }
 
